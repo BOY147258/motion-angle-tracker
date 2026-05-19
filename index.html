@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="screen-orientation" content="landscape">
-<title>MotionAngle Pro v3.2 — 运动分析系统</title>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link rel="preload" href="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" as="script" crossorigin>
+<title>MotionAngle Pro v5.0 — 运动分析系统</title>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <style>
@@ -14,703 +12,692 @@
 :root{
   --accent:#00f0ff;--accent2:#7c5bf5;--green:#00e676;--red:#ff3d5a;
   --orange:#ff9100;--blue:#448aff;--dim:#5a6a8a;--text:#e8eef8;
-  --panel:rgba(6,8,18,.85);--border:rgba(30,50,90,.5);
+  --panel:rgba(6,8,18,.88);--border:rgba(30,50,90,.5);
+  --glow:0 0 12px rgba(0,240,255,.15);
   --font:-apple-system,BlinkMacSystemFont,'SF Mono','JetBrains Mono',monospace;
 }
 html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);color:var(--text);-webkit-user-select:none;user-select:none;touch-action:manipulation}
+@media(orientation:portrait){html{transform:rotate(90deg);transform-origin:top left;width:100vh;height:100vw;position:absolute;top:0;left:100vw;overflow:hidden}}
 
-/* Force landscape orientation */
-@media(orientation:portrait){
-  html{transform:rotate(90deg);transform-origin:top left;width:100vh;height:100vw;position:absolute;top:0;left:100vw;overflow:hidden}
-}
-
-/* ===== EXPERIMENT SETUP PAGE ===== */
-#setupPage{position:fixed;top:0;left:0;width:100%;height:100%;z-index:100;background:linear-gradient(135deg,#06080f 0%,#0a1628 50%,#0f0a20 100%);display:flex;align-items:center;justify-content:center;flex-direction:column;padding:20px}
-.setup-card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:32px 28px;width:100%;max-width:380px;backdrop-filter:blur(20px)}
-.setup-card h1{font-size:20px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;margin-bottom:4px}
-.setup-card .sub{font-size:11px;color:var(--dim);text-align:center;margin-bottom:24px}
-.form-group{margin-bottom:16px}
-.form-group label{display:block;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
-.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:8px;color:var(--text);font:13px var(--font);outline:none;transition:border-color .2s}
-.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--accent)}
-.form-group textarea{height:60px;resize:none}
-.form-group select{appearance:none}
-.start-btn{width:100%;padding:14px;border:none;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font:14px/1 var(--font);font-weight:700;cursor:pointer;margin-top:8px;transition:transform .1s,box-shadow .2s}
-.start-btn:active{transform:scale(.97)}
-.start-btn:hover{box-shadow:0 0 25px rgba(0,240,255,.3)}
-.setup-footer{margin-top:16px;font-size:9px;color:var(--dim);text-align:center;line-height:1.6}
-
-/* ===== FULLSCREEN VIDEO ===== */
 #videoLayer{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
 #video{width:100%;height:100%;object-fit:cover;background:#000}
 #video.mirror{transform:scaleX(-1)}
 #canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none}
 #videoFile{display:none}
 
-/* ===== FLOATING PANELS ===== */
-.fp{position:fixed;z-index:10;background:var(--panel);border:1px solid var(--border);border-radius:10px;backdrop-filter:blur(12px)}
+#hudOverlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;opacity:.25}
+#hudOverlay::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,240,255,.015) 2px,rgba(0,240,255,.015) 4px)}
+#hudOverlay::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scan 4s linear infinite;opacity:.3}
+@keyframes scan{0%{top:0}100%{top:100%}}
+.hc{position:fixed;z-index:3;pointer-events:none;width:20px;height:20px;border-color:var(--accent);border-style:solid;opacity:.35}
+.hc.tl{top:4px;left:4px;border-width:2px 0 0 2px}.hc.tr{top:4px;right:4px;border-width:2px 2px 0 0}
+.hc.bl{bottom:4px;left:4px;border-width:0 0 2px 2px}.hc.br{bottom:4px;right:4px;border-width:0 2px 2px 0}
 
-/* Top status */
-#topBar{top:8px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;padding:5px 14px;border-radius:16px;font-size:10px}
-.logo-sm{font-weight:800;font-size:11px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.fp{position:fixed;z-index:10;background:var(--panel);border:1px solid var(--border);border-radius:10px;backdrop-filter:blur(12px);box-shadow:var(--glow)}
+
+/* Top bar */
+#topBar{top:6px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:4px 12px;border-radius:14px;font-size:10px}
+.logo{font-weight:800;font-size:11px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:1px}
 .dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:3px}
-.dot-on{background:var(--green);box-shadow:0 0 4px var(--green)}.dot-off{background:var(--dim)}.dot-rec{background:var(--red);animation:p .5s infinite}
-@keyframes p{0%,100%{opacity:1}50%{opacity:.2}}
+.dot-on{background:var(--green);box-shadow:0 0 6px var(--green)}.dot-off{background:var(--dim)}.dot-rec{background:var(--red);animation:blink .5s infinite}
+@keyframes blink{50%{opacity:.2}}
+
+/* Quality badge */
+#qualBadge{padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700}
+.q-high{background:rgba(0,230,118,.15);color:var(--green)}.q-mid{background:rgba(255,145,0,.15);color:var(--orange)}.q-low{background:rgba(255,61,90,.15);color:var(--red)}
 
 /* Source tabs */
-#srcTabs{top:8px;left:8px;display:flex;gap:2px;padding:3px 6px;border-radius:8px}
-#srcTabs button{font:10px var(--font);padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--dim);cursor:pointer}
+#srcTabs{top:6px;left:8px;display:flex;gap:2px;padding:3px 5px;border-radius:8px}
+#srcTabs button{font:9px var(--font);padding:3px 7px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--dim);cursor:pointer;transition:all .2s}
 #srcTabs button.on{color:var(--accent);border-color:var(--accent);background:rgba(0,240,255,.06)}
 
-/* Angle panel - right side, optimized for landscape */
-#anglePanel{top:8px;right:8px;width:150px;max-height:calc(100vh - 16px);overflow-y:auto;padding:6px;border-radius:10px}
+/* Angle panel */
+#anglePanel{top:6px;right:6px;width:155px;max-height:calc(100vh - 12px);overflow-y:auto;padding:6px;border-radius:10px}
 #anglePanel::-webkit-scrollbar{width:0}
-.pt{font-size:8px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
-.ai{display:flex;justify-content:space-between;align-items:center;padding:3px 5px;margin-bottom:1px;border-radius:3px;font-size:10px;cursor:pointer;border-left:2px solid transparent}
+.pt{font-size:7px;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px;margin:4px 0 3px;display:flex;align-items:center;gap:4px}
+.pt::before{content:'';flex:0 0 6px;height:1px;background:var(--accent);opacity:.4}
+.ai{display:flex;justify-content:space-between;align-items:center;padding:2px 5px;margin-bottom:1px;border-radius:3px;font-size:9px;border-left:2px solid transparent;transition:background .15s}
 .ai.l{border-left-color:var(--orange)}.ai.r{border-left-color:var(--blue)}.ai.c{border-left-color:var(--accent2)}
-.ai.dis{opacity:.2}
-.ai .n{color:var(--dim);font-size:9px}.ai .v{font-weight:700;font-size:12px;font-variant-numeric:tabular-nums;min-width:44px;text-align:right}
+.ai.dis{opacity:.15}
+.ai .n{color:var(--dim);font-size:8px}.ai .v{font-weight:700;font-size:11px;font-variant-numeric:tabular-nums;min-width:40px;text-align:right}
 .ai .v.on{color:var(--accent)}.ai .v.w{color:var(--orange)}.ai .v.off{color:var(--dim)}
+.ai .conf{width:3px;height:10px;border-radius:1px;margin-left:3px}
+.conf-h{background:var(--green)}.conf-m{background:var(--orange)}.conf-l{background:var(--red)}
 
-/* View tabs inside angle panel */
-.vt{display:flex;gap:2px;margin-bottom:6px}
-.vt button{flex:1;font:8px var(--font);padding:3px 0;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--dim);cursor:pointer;text-align:center}
+.vt{display:flex;gap:2px;margin-bottom:4px}
+.vt button{flex:1;font:7px var(--font);padding:2px 0;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--dim);cursor:pointer;transition:all .2s}
 .vt button.on{color:var(--accent2);border-color:var(--accent2);background:rgba(124,91,245,.06)}
 
 /* Bottom toolbar */
-#bottomBar{bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:3px;padding:5px 10px;border-radius:10px}
-#bottomBar button{font:10px var(--font);padding:5px 9px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--dim);cursor:pointer}
+#bottomBar{bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:3px;padding:4px 8px;border-radius:10px}
+#bottomBar button{font:9px var(--font);padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--dim);cursor:pointer;position:relative;transition:all .2s}
 #bottomBar button.on{color:var(--accent);border-color:var(--accent);background:rgba(0,240,255,.05)}
+#bottomBar button .tip{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);padding:3px 7px;background:var(--panel);border:1px solid var(--border);border-radius:4px;font-size:8px;color:var(--text);white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s}
+#bottomBar button:active .tip{opacity:1}
 
-/* Controls - bottom left */
-#ctrlPanel{bottom:12px;left:8px;display:flex;gap:4px;padding:5px 8px;border-radius:10px}
-#ctrlPanel button{font:10px var(--font);padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:transparent;cursor:pointer;font-weight:600}
-.rb{color:var(--red)!important;border-color:var(--red)!important}.rb.active{background:var(--red)!important;color:#fff!important}
+/* Control panel */
+#ctrlPanel{bottom:10px;left:8px;display:flex;gap:3px;padding:4px 6px;border-radius:10px}
+#ctrlPanel button{font:9px var(--font);padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:transparent;cursor:pointer;font-weight:600;transition:all .2s}
+.rb{color:var(--red)!important;border-color:var(--red)!important}.rb.active{background:var(--red)!important;color:#fff!important;box-shadow:0 0 10px rgba(255,61,90,.3)!important}
+.mb{color:var(--orange)!important;border-color:var(--orange)!important}.mb:hover{background:rgba(255,145,0,.1)!important}
 .eb{color:var(--green)!important;border-color:var(--green)!important}.eb:hover:not(:disabled){background:var(--green)!important;color:#000!important}
-.vb{color:var(--blue)!important;border-color:var(--blue)!important}.vb:hover:not(:disabled){background:var(--blue)!important;color:#000!important}
 #ctrlPanel button:disabled{opacity:.2;cursor:default}
 
 /* REC badge */
-#recBadge{top:8px;right:8px;padding:4px 10px;border-radius:6px;background:rgba(255,61,90,.9);color:#fff;font-size:10px;display:none;align-items:center;gap:5px}
+#recBadge{top:6px;right:165px;padding:3px 8px;border-radius:6px;background:rgba(255,61,90,.9);color:#fff;font-size:9px;display:none;align-items:center;gap:4px;box-shadow:0 0 10px rgba(255,61,90,.3)}
 #recBadge.show{display:flex}
 
-/* Symmetry - bottom right */
-#symPanel{bottom:12px;right:8px;width:140px;padding:6px 8px;border-radius:8px;display:none}
-#symPanel.show{display:block}
-.st{font-size:8px;color:var(--dim);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px}
-.sr{display:flex;align-items:center;gap:4px;margin-bottom:2px}
-.sr .sl{font-size:8px;color:var(--dim);width:16px;text-align:right}
-.stk{flex:1;height:3px;background:rgba(255,255,255,.05);border-radius:2px;position:relative;overflow:hidden}
-.sf{height:100%;border-radius:2px;transition:width .12s}
-.sf.ok{background:var(--green)}.sf.ll{background:var(--orange)}.sf.rr{background:var(--blue)}
-
-/* Warn */
-#warnBar{top:40px;left:50%;transform:translateX(-50%);padding:4px 12px;border-radius:6px;font-size:9px;color:var(--orange);display:none;align-items:center;gap:5px}
-#warnBar.show{display:flex}
-
 /* Info bar */
-#infoBar{bottom:50px;left:8px;padding:3px 8px;border-radius:5px;font-size:9px;color:var(--dim);display:flex;gap:10px}
+#infoBar{bottom:42px;left:8px;padding:2px 7px;border-radius:4px;font-size:8px;color:var(--dim);display:flex;gap:8px}
 #infoBar .hl{color:var(--text);font-weight:600}
-#infoBar .rt{color:var(--red);font-weight:700}
 
-/* Progress bar */
-#progressBar{position:fixed;bottom:48px;left:10%;width:80%;height:4px;background:rgba(255,255,255,.05);border-radius:2px;z-index:10;display:none;cursor:pointer}
+/* Waveform */
+#wavePanel{bottom:42px;right:6px;width:155px;height:44px;padding:3px;border-radius:6px;overflow:hidden}
+#waveCanvas{width:100%;height:100%;display:block}
+
+/* Progress */
+#progressBar{position:fixed;bottom:40px;left:12%;width:76%;height:3px;background:rgba(255,255,255,.04);border-radius:2px;z-index:10;display:none;cursor:pointer}
 #progressBar.show{display:block}
-#progressFill{height:100%;background:var(--accent);border-radius:2px;width:0}
+#progressFill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;width:0;transition:width .1s}
+
+/* Calibration modal */
+#calibModal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;backdrop-filter:blur(6px)}
+#calibModal.show{display:flex}
+#calibModal .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:24px 32px;text-align:center;max-width:360px}
+#calibModal h3{font-size:14px;margin-bottom:8px;color:var(--accent)}
+#calibModal p{font-size:11px;color:var(--dim);line-height:1.6;margin-bottom:12px}
+#calibModal button{font:11px var(--font);padding:8px 20px;border:1px solid var(--accent);border-radius:6px;background:rgba(0,240,255,.1);color:var(--accent);cursor:pointer}
+#calibModal button:hover{background:rgba(0,240,255,.2)}
+#calibModal .skip{border-color:var(--dim);color:var(--dim);background:transparent;margin-left:8px}
+
+/* Trial counter */
+#trialBadge{bottom:10px;right:6px;padding:3px 8px;border-radius:6px;font-size:9px;color:var(--accent2);display:none}
+#trialBadge.show{display:block}
 
 /* Placeholder */
-#placeholder{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:5;text-align:center;color:var(--dim);font-size:12px}
-#placeholder .icon{font-size:48px;display:block;margin-bottom:10px;filter:drop-shadow(0 0 20px rgba(0,240,255,.3))}
-.load-bar{width:180px;height:3px;background:rgba(255,255,255,.05);border-radius:2px;margin:10px auto;overflow:hidden}
+#placeholder{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:5;text-align:center;color:var(--dim);font-size:11px}
+#placeholder .icon{font-size:42px;display:block;margin-bottom:8px;filter:drop-shadow(0 0 16px rgba(0,240,255,.3));animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.load-bar{width:160px;height:3px;background:rgba(255,255,255,.05);border-radius:2px;margin:8px auto;overflow:hidden}
 .load-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0;transition:width .3s}
 
 @media(max-height:420px){
-  #anglePanel{width:130px;padding:5px;top:6px}
-  .ai{padding:2px 4px}.ai .v{font-size:11px;min-width:36px}.ai .n{font-size:8px}
-  #bottomBar button{padding:4px 7px;font-size:9px}
-  #ctrlPanel button{padding:4px 8px;font-size:9px}
-  #topBar{padding:3px 10px;font-size:9px;gap:8px}
-  #srcTabs button{padding:3px 6px;font-size:9px}
-  #infoBar{font-size:8px}
-  .pt{font-size:7px}
+  #anglePanel{width:125px;padding:4px}.ai{padding:1px 3px}.ai .v{font-size:10px;min-width:34px}.ai .n{font-size:7px}
+  #bottomBar button,#ctrlPanel button{padding:3px 6px;font-size:8px}
+  #topBar{padding:3px 8px;font-size:9px;gap:6px}
+  #wavePanel{width:120px;height:34px}
+  .ai .conf{display:none}
 }
 </style>
 </head>
 <body>
 
-<!-- Setup page removed: direct to main interface -->
-
-<!-- ===== MAIN INTERFACE ===== -->
 <div id="videoLayer"><video id="video" playsinline muted></video></div>
 <canvas id="canvas"></canvas>
-<input type="file" id="videoFile">
+<input type="file" id="videoFile" accept="video/*">
+<div id="hudOverlay"></div>
+<div class="hc tl"></div><div class="hc tr"></div><div class="hc bl"></div><div class="hc br"></div>
 
-<div id="placeholder" style="display:none">
-  <span class="icon">◈</span>
-  <span id="placeholderText">加载中...</span>
-  <div class="load-bar"><div class="load-fill" id="loadFill"></div></div>
+<div id="placeholder"><span class="icon">◈</span><span id="placeholderText">初始化姿态引擎...</span><div class="load-bar"><div class="load-fill" id="loadFill"></div></div></div>
+
+<!-- Calibration Modal -->
+<div id="calibModal">
+  <div class="card">
+    <h3>📐 校准模式</h3>
+    <p>将手机对准一个已知的 90° 直角（如桌角、门框），确保直角的三个点清晰可见。<br>系统将自动计算偏差并补偿。</p>
+    <p style="font-size:10px;color:var(--orange)">校准可提高数据精度约 3-5°</p>
+    <button onclick="startCalibration()">开始校准</button>
+    <button class="skip" onclick="skipCalibration()">跳过</button>
+    <div id="calibStatus" style="margin-top:10px;font-size:10px;color:var(--dim)"></div>
+  </div>
 </div>
 
 <div class="fp" id="topBar">
-  <span class="logo-sm">◈ MOTION</span>
+  <span class="logo">◈ MOTION PRO</span>
   <span><span class="dot dot-off" id="dotCam"></span>CAM</span>
-  <span><span class="dot dot-off" id="dotModel"></span>AI</span>
-  <span><span class="dot dot-off" id="dotDet"></span><span id="detTx">—</span></span>
-  <span id="fpsTx">—fps</span>
+  <span id="fpsDisplay" style="color:var(--dim)">--fps</span>
+  <span id="qualBadge" class="q-mid">--</span>
+  <span id="timeCode" style="color:var(--dim);font-variant-numeric:tabular-nums">00:00.000</span>
+  <span id="sampleRate" style="color:var(--dim)">30Hz</span>
 </div>
 
 <div class="fp" id="srcTabs">
-  <button class="on" data-src="camera">📷</button>
-  <button data-src="video">🎬</button>
-  <button data-src="image">🖼</button>
+  <button class="on" onclick="switchSource('cam')">📷 实时</button>
+  <button onclick="switchSource('file')">📁 导入</button>
+  <button onclick="showCalibration()">📐 校准</button>
 </div>
 
-<div class="fp" id="recBadge"><span class="dot dot-rec"></span>REC <span id="recTimeTop">00:00</span></div>
+<div class="fp" id="recBadge"><span class="dot dot-rec"></span>REC <span id="recTime">00:00</span> | T<span id="trialNum">1</span></div>
 
 <div class="fp" id="anglePanel">
   <div class="vt">
-    <button class="on" data-v="front">正面</button>
-    <button data-v="side">侧面</button>
-    <button data-v="full">全部</button>
+    <button class="on" onclick="setView('all',this)">全部</button>
+    <button onclick="setView('upper',this)">上肢</button>
+    <button onclick="setView('lower',this)">下肢</button>
+    <button onclick="setView('core',this)">躯干</button>
   </div>
-  <div class="pt">◈ 实时角度</div>
-  <div id="angleList"></div>
+  <div class="pt">◈ 左侧</div><div id="anglesL"></div>
+  <div class="pt" style="margin-top:4px">◈ 右侧</div><div id="anglesR"></div>
+  <div class="pt" style="margin-top:4px">◈ 躯干</div><div id="anglesC"></div>
 </div>
 
+<div class="fp" id="wavePanel"><canvas id="waveCanvas"></canvas></div>
+<div class="fp" id="infoBar">
+  <span>分辨率:<span class="hl" id="resInfo">--</span></span>
+  <span>延迟:<span class="hl" id="latInfo">--</span>ms</span>
+  <span>滤波:<span class="hl">4Hz LP</span></span>
+  <span id="calibInfo" style="color:var(--green)"></span>
+</div>
+<div id="progressBar"><div id="progressFill"></div></div>
+<div class="fp" id="trialBadge">试次: <span id="trialCount">0</span></div>
+
 <div class="fp" id="bottomBar">
-  <button class="on" data-t="skeleton">🦴</button>
-  <button class="on" data-t="angles">📐</button>
-  <button data-t="symmetry">⚖️</button>
-  <button data-t="cog">🎯</button>
-  <button data-t="trace">✏️</button>
+  <button class="on" id="btnSkel" onclick="toggle('skeleton')">⬡<span class="tip">骨架线</span></button>
+  <button class="on" id="btnAng" onclick="toggle('angles')">∠<span class="tip">角度标注</span></button>
+  <button id="btnCog" onclick="toggle('cog')">⊕<span class="tip">重心</span></button>
+  <button id="btnTrail" onclick="toggle('trail')">〰<span class="tip">轨迹</span></button>
+  <button id="btnGrid" onclick="toggle('grid')">▦<span class="tip">网格</span></button>
+  <button id="btnMirror" onclick="toggle('mirror')">⇆<span class="tip">镜像</span></button>
 </div>
 
 <div class="fp" id="ctrlPanel">
-  <button class="rb" id="btnRec">⏺ 录制</button>
-  <button class="eb" id="btnExp" disabled>📊</button>
-  <button class="vb" id="btnVid" disabled>🎬</button>
+  <button class="rb" id="btnRec" onclick="toggleRec()">● 录制</button>
+  <button class="mb" id="btnMark" onclick="markTrial()" disabled>⚑ 标记试次</button>
+  <button class="eb" id="btnExport" onclick="exportData()" disabled>↓ 导出</button>
 </div>
-
-<div class="fp" id="symPanel">
-  <div class="st">⚖️ 对称度</div>
-  <div class="sr"><span class="sl">肩</span><div class="stk"><div class="sf ok" id="sSh" style="width:50%"></div></div></div>
-  <div class="sr"><span class="sl">肘</span><div class="stk"><div class="sf ok" id="sEl" style="width:50%"></div></div></div>
-  <div class="sr"><span class="sl">髋</span><div class="stk"><div class="sf ok" id="sHp" style="width:50%"></div></div></div>
-  <div class="sr"><span class="sl">膝</span><div class="stk"><div class="sf ok" id="sKn" style="width:50%"></div></div></div>
-</div>
-
-<div class="fp" id="warnBar"><span class="dot" style="background:var(--orange)"></span><span id="warnMsg"></span></div>
-
-<div class="fp" id="infoBar">
-  <span>⏱<span class="rt" id="recTime">—</span></span>
-  <span>帧<span class="hl" id="frmCnt">0</span></span>
-  <span>异常<span style="color:var(--orange)" id="outCnt">0</span></span>
-</div>
-
-<div id="progressBar"><div id="progressFill"></div></div>
 
 <script>
-// ============================================================
-//  CONSTANTS & STATE
-// ============================================================
-const C={outlierDeg:25,sampleRate:50,filterCutoff:4,filterOrder:4,confThreshold:0.65,traceMax:80,jumpLimit:40};
-
-const ANGLE_MAP=[
-  ['lShoulder','左肩',[13,11,23],'l'],['rShoulder','右肩',[14,12,24],'r'],
-  ['lElbow','左肘',[11,13,15],'l'],['rElbow','右肘',[12,14,16],'r'],
-  ['lWrist','左腕',[13,15,19],'l'],['rWrist','右腕',[14,16,20],'r'],
-  ['lHip','左髋',[11,23,25],'l'],['rHip','右髋',[12,24,26],'r'],
-  ['lKnee','左膝',[23,25,27],'l'],['rKnee','右膝',[24,26,28],'r'],
-  ['lAnkle','左踝',[25,27,31],'l'],['rAnkle','右踝',[26,28,32],'r'],
-];
-// All views show all 12 joint angles (shoulder/elbow/wrist/hip/knee/ankle × L/R)
-const VIEW_KEYS={front:null,side:null,full:null};
-const ALL_KEYS=ANGLE_MAP.map(a=>a[0]);
-
-let S={
-  view:'front',cameraOn:false,modelReady:false,isMirrored:false,
-  isRec:false,recRaw:[],recChunks:[],recStart:0,mRec:null,recTimer:null,
-  outlierCount:0,frameCount:0,prevAngles:{},
-  enabled:{},markers:{skeleton:true,angles:true,symmetry:false,cog:false,trace:false},
-  tracePoints:[],landmarks:null,fps:0,lastTime:0,fpsFrames:0,
-  experiment:{subjectId:'',condition:'',movement:'',notes:'',startTime:null}
+// ===== JOINT DEFINITIONS =====
+const JOINTS={
+  L:[{id:'l_shoulder',name:'肩',a:[7,11,23]},{id:'l_elbow',name:'肘',a:[11,13,15]},{id:'l_wrist',name:'腕',a:[13,15,19]},{id:'l_hip',name:'髋',a:[11,23,25]},{id:'l_knee',name:'膝',a:[23,25,27]},{id:'l_ankle',name:'踝',a:[25,27,31]}],
+  R:[{id:'r_shoulder',name:'肩',a:[8,12,24]},{id:'r_elbow',name:'肘',a:[12,14,16]},{id:'r_wrist',name:'腕',a:[14,16,20]},{id:'r_hip',name:'髋',a:[12,24,26]},{id:'r_knee',name:'膝',a:[24,26,28]},{id:'r_ankle',name:'踝',a:[26,28,32]}],
+  C:[{id:'c_trunk',name:'躯干倾斜',a:[11,23,25]},{id:'c_neck',name:'颈部',a:[0,11,12]}]
 };
-ALL_KEYS.forEach(k=>S.enabled[k]=true);
+const UPPER_IDS=['l_shoulder','l_elbow','l_wrist','r_shoulder','r_elbow','r_wrist'];
+const LOWER_IDS=['l_hip','l_knee','l_ankle','r_hip','r_knee','r_ankle'];
+const CORE_IDS=['c_trunk','c_neck'];
+const CONNECTIONS=[[11,13],[13,15],[12,14],[14,16],[11,12],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28],[27,29],[28,30],[15,17],[16,18],[0,11],[0,12]];
+const ALL_JOINTS=[...JOINTS.L,...JOINTS.R,...JOINTS.C];
 
-// Butterworth filter state per angle
-let filterState={};
-ALL_KEYS.forEach(k=>{filterState[k]={x:[0,0],y:[0,0]};});
+// ===== STATE =====
+let state={
+  skeleton:true,angles:true,cog:false,trail:false,grid:false,mirror:false,
+  recording:false,recData:[],recStart:0,trialMarkers:[],currentTrial:1,
+  source:'cam',view:'all',
+  trailPoints:{},waveData:[],
+  fps:0,frameCount:0,lastFpsTime:0,lastFrameTime:0,
+  calibOffset:0,calibrated:false,
+  latestLandmarks:null,latestConfidence:0
+};
 
-let pose,video,canvas,ctx;
-
-// ============================================================
-//  BUTTERWORTH LOW-PASS FILTER (2nd order, applied twice = 4th order)
-// ============================================================
-function butterworthCoeffs(cutoff,sampleRate){
-  const w=Math.tan(Math.PI*cutoff/sampleRate);
-  const w2=w*w;
-  const r=Math.sqrt(2);
-  const d=1+r*w+w2;
-  return{b0:w2/d,b1:2*w2/d,b2:w2/d,a1:2*(w2-1)/d,a2:(1-r*w+w2)/d};
+// ===== BUTTERWORTH LOW-PASS FILTER (2nd order, 4Hz cutoff at 30fps) =====
+class ButterworthLP{
+  constructor(){
+    // Pre-computed coefficients for fc=4Hz, fs=30Hz, 2nd order
+    // Using bilinear transform
+    const fc=4,fs=30;
+    const wc=Math.tan(Math.PI*fc/fs);
+    const k1=Math.SQRT2*wc;
+    const k2=wc*wc;
+    const a0=k2/(1+k1+k2);
+    this.b=[a0,2*a0,a0];
+    const k3=2*a0/k2;
+    this.a=[1,k3*(k2-1),1-k3-2*a0];
+    this.reset();
+  }
+  reset(){this.x=[0,0];this.y=[0,0]}
+  filter(x){
+    const y=this.b[0]*x+this.b[1]*this.x[0]+this.b[2]*this.x[1]-this.a[1]*this.y[0]-this.a[2]*this.y[1];
+    this.x[1]=this.x[0];this.x[0]=x;
+    this.y[1]=this.y[0];this.y[0]=y;
+    return y;
+  }
 }
 
-const BW=butterworthCoeffs(C.filterCutoff,C.sampleRate);
+// One filter per joint
+const filters={};
+for(const j of ALL_JOINTS){filters[j.id]=new ButterworthLP()}
 
-function applyFilter(key,raw){
-  if(raw===null)return null;
-  const s=filterState[key];
-  // Direct Form II
-  const w=raw-BW.a1*s.x[0]-BW.a2*s.x[1];
-  const out=BW.b0*w+BW.b1*s.x[0]+BW.b2*s.x[1];
-  s.x[1]=s.x[0];s.x[0]=w;
-  return Math.round(out*10)/10;
+// ===== FIXED-RATE SAMPLER (30Hz) =====
+const SAMPLE_RATE=30;
+const SAMPLE_INTERVAL=1000/SAMPLE_RATE;
+let sampleTimer=null;
+let latestAngles={},latestConfidences={};
+
+function startSampler(){
+  sampleTimer=setInterval(()=>{
+    if(!state.recording||!state.latestLandmarks)return;
+    const t=(performance.now()-state.recStart)/1000;
+    const row={time:+t.toFixed(4),trial:state.currentTrial,quality:+(state.latestConfidence).toFixed(3)};
+    for(const j of ALL_JOINTS){
+      const raw=latestAngles[j.id];
+      if(raw!==undefined){
+        row[j.id+'_raw']=raw;
+        row[j.id]=Math.round(filters[j.id].filter(raw));
+        row[j.id+'_conf']=+(latestConfidences[j.id]||0).toFixed(2);
+      }
+    }
+    state.recData.push(row);
+  },SAMPLE_INTERVAL);
 }
+function stopSampler(){if(sampleTimer){clearInterval(sampleTimer);sampleTimer=null}}
 
-function resetFilters(){ALL_KEYS.forEach(k=>{filterState[k]={x:[0,0],y:[0,0]};});}
+// ===== INIT =====
+let pose,video,canvas,ctx,waveCanvas,waveCtx,animId;
 
-// ============================================================
-//  EXPERIMENT SETUP
-// ============================================================
-// Experiment info collected at export time via prompt
-function startExperiment(){}
-
-// ============================================================
-//  INIT
-// ============================================================
-function init(){
+window.onload=async()=>{
   video=document.getElementById('video');
   canvas=document.getElementById('canvas');
   ctx=canvas.getContext('2d');
-  // Request landscape orientation
-  try{screen.orientation.lock('landscape').catch(()=>{});}catch(e){}
-  buildAngleList();
-  bindUI();
-  resize();
-  window.addEventListener('resize',resize);
-  startCamera();
+  waveCanvas=document.getElementById('waveCanvas');
+  waveCtx=waveCanvas.getContext('2d');
+  setLoad(20);
+  await initPose();
+  setLoad(70);
+  await startCamera();
+  setLoad(100);
+  setTimeout(()=>document.getElementById('placeholder').style.display='none',300);
+};
+
+function setLoad(p){document.getElementById('loadFill').style.width=p+'%'}
+
+async function initPose(){
+  pose=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${f}`});
+  pose.setOptions({modelComplexity:1,smoothLandmarks:true,minDetectionConfidence:.6,minTrackingConfidence:.5});
+  pose.onResults(onResults);
 }
 
-function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
-
-// ============================================================
-//  SOURCE
-// ============================================================
 async function startCamera(){
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1920},height:{ideal:1080}}});
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},audio:false});
     video.srcObject=stream;await video.play();
-    S.cameraOn=true;S.isMirrored=true;
-    video.classList.add('mirror');
     document.getElementById('dotCam').className='dot dot-on';
-    document.getElementById('placeholder').style.display='none';
-    document.getElementById('progressBar').classList.remove('show');
-    loadPose();
-  }catch(e){
-    document.getElementById('placeholder').style.display='block';
-    document.getElementById('placeholderText').textContent='摄像头失败: '+e.message;
+    requestFrame();
+  }catch(e){document.getElementById('placeholderText').textContent='摄像头失败: '+e.message}
+}
+
+function requestFrame(){animId=requestAnimationFrame(loop)}
+async function loop(){
+  if(video.readyState>=2){
+    canvas.width=video.videoWidth||video.clientWidth;
+    canvas.height=video.videoHeight||video.clientHeight;
+    try{await pose.send({image:video})}catch(e){}
+    state.frameCount++;
+    const now=performance.now();
+    if(now-state.lastFpsTime>=1000){state.fps=state.frameCount;state.frameCount=0;state.lastFpsTime=now;document.getElementById('fpsDisplay').textContent=state.fps+'fps'}
+    if(video.currentTime)document.getElementById('timeCode').textContent=formatTimeMs(video.currentTime);
   }
+  animId=requestAnimationFrame(loop);
 }
 
-function stopCamera(){
-  if(video.srcObject){video.srcObject.getTracks().forEach(t=>t.stop());video.srcObject=null;}
-  S.cameraOn=false;S.isMirrored=false;S.landmarks=null;
-  video.classList.remove('mirror');
-  document.getElementById('dotCam').className='dot dot-off';
-}
-
-function loadVideoSrc(){
-  const inp=document.getElementById('videoFile');inp.accept='video/*';
-  inp.onchange=e=>{
-    const f=e.target.files[0];if(!f)return;stopCamera();
-    video.src=URL.createObjectURL(f);video.loop=false;video.play();
-    S.cameraOn=true;video.style.display='';
-    document.getElementById('dotCam').className='dot dot-on';
-    document.getElementById('placeholder').style.display='none';
-    document.getElementById('progressBar').classList.add('show');
-    video.ontimeupdate=()=>{if(video.duration)document.getElementById('progressFill').style.width=(video.currentTime/video.duration*100)+'%';};
-    if(!S.modelReady)loadPose();else detectLoop();
-  };inp.click();
-}
-
-function loadImageSrc(){
-  const inp=document.getElementById('videoFile');inp.accept='image/*';
-  inp.onchange=e=>{
-    const f=e.target.files[0];if(!f)return;stopCamera();video.style.display='none';
-    const img=new Image();
-    img.onload=()=>{resize();ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      document.getElementById('placeholder').style.display='none';
-      if(S.modelReady)pose.send({image:img});else loadPose().then(()=>pose.send({image:img}));
-    };img.src=URL.createObjectURL(f);
-  };inp.click();
-}
-
-// ============================================================
-//  MEDIAPIPE
-// ============================================================
-async function loadPose(){
-  document.getElementById('placeholder').style.display='block';
-  document.getElementById('loadFill').style.width='40%';
-  document.getElementById('placeholderText').textContent='加载 AI 模型...';
-  pose=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${f}`});
-  pose.setOptions({modelComplexity:1,smoothLandmarks:true,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
-  pose.onResults(onResults);
-  await pose.initialize();
-  S.modelReady=true;
-  document.getElementById('loadFill').style.width='100%';
-  document.getElementById('dotModel').className='dot dot-on';
-  document.getElementById('placeholder').style.display='none';
-  detectLoop();
-}
-
-function detectLoop(){
-  if(!S.cameraOn||!S.modelReady)return;
-  if(video.readyState>=2)pose.send({image:video}).then(()=>requestAnimationFrame(detectLoop));
-  else requestAnimationFrame(detectLoop);
-}
-
+// ===== RESULTS HANDLER =====
 function onResults(results){
-  if(!results.poseLandmarks){S.landmarks=null;document.getElementById('dotDet').className='dot dot-off';document.getElementById('detTx').textContent='无人';return;}
-  // Mirror X coordinates for front camera so left/right matches user's body
-  if(S.isMirrored){
-    S.landmarks=results.poseLandmarks.map(p=>({x:1-p.x,y:p.y,z:p.z?-p.z:0,visibility:p.visibility}));
-  }else{
-    S.landmarks=results.poseLandmarks;
-  }
-  S.frameCount++;
-  document.getElementById('dotDet').className='dot dot-on';document.getElementById('detTx').textContent='✓';
-  updateFPS();
-
-  const rawAngles=calcAllAngles();
-  // Apply Butterworth filter + jump suppression
-  const angles={};
-  ALL_KEYS.forEach(k=>{
-    let v=S.enabled[k]?applyFilter(k,rawAngles[k]):null;
-    // Suppress sudden jumps when limbs overlap (low confidence causes spikes)
-    if(v!=null&&S.prevAngles[k]!=null&&Math.abs(v-S.prevAngles[k])>C.jumpLimit){
-      v=S.prevAngles[k]*0.7+v*0.3;
-    }
-    angles[k]=v;
-  });
-  const flags=detectOutliers(angles);
-
-  draw(angles,flags);
-  updateAngleList(angles,flags);
-  updateSym(angles);
-  updateWarn(flags);
-  if(S.isRec)recordFrame(rawAngles,angles,flags);
-}
-
-// ============================================================
-//  ANGLE CALCULATION
-// ============================================================
-function calcAngle(lms,a,b,c){
-  const la=lms[a],lb=lms[b],lc=lms[c];
-  if(!la||!lb||!lc)return null;
-  // Confidence threshold
-  if(la.visibility<C.confThreshold||lb.visibility<C.confThreshold||lc.visibility<C.confThreshold)return null;
-  const ba={x:la.x-lb.x,y:la.y-lb.y},bc={x:lc.x-lb.x,y:lc.y-lb.y};
-  const dot=ba.x*bc.x+ba.y*bc.y,mag=Math.sqrt(ba.x**2+ba.y**2)*Math.sqrt(bc.x**2+bc.y**2);
-  if(mag<1e-6)return null;
-  return Math.round(Math.acos(Math.max(-1,Math.min(1,dot/mag)))*180/Math.PI*10)/10;
-}
-
-function calcAllAngles(){
-  const a={};
-  ANGLE_MAP.forEach(([key,,pts])=>{if(S.enabled[key])a[key]=calcAngle(S.landmarks,pts[0],pts[1],pts[2]);});
-  return a;
-}
-
-function detectOutliers(angles){
-  const flags=[];
-  ALL_KEYS.forEach(k=>{
-    if(angles[k]!=null&&S.prevAngles[k]!=null&&Math.abs(angles[k]-S.prevAngles[k])>C.outlierDeg){flags.push(k);S.outlierCount++;}
-  });
-  S.prevAngles={...angles};return flags;
-}
-
-// ============================================================
-//  DRAWING
-// ============================================================
-function draw(angles,flags){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  if(!S.landmarks)return;
-  const w=canvas.width,h=canvas.height,lms=S.landmarks;
-  if(S.markers.skeleton)drawSkel(lms,w,h);
-  if(S.markers.angles)drawLbl(lms,angles,flags,w,h);
-  if(S.markers.cog)drawCOG(lms,w,h);
-  if(S.markers.trace)drawTrace(lms,w,h);
-}
+  if(!results.poseLandmarks)return;
+  const lm=results.poseLandmarks;
+  state.latestLandmarks=lm;
+  const w=canvas.width,h=canvas.height;
+  const now=performance.now();
 
-function drawSkel(lms,w,h){
-  const conns=[[11,13],[13,15],[12,14],[14,16],[11,12],[11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],[27,31],[28,32],[15,17],[15,19],[16,18],[16,20]];
-  ctx.shadowColor='rgba(0,240,255,.35)';ctx.shadowBlur=6;
-  ctx.strokeStyle='rgba(0,240,255,.5)';ctx.lineWidth=2;
-  conns.forEach(([a,b])=>{
-    const la=lms[a],lb=lms[b];
-    if(la&&lb&&la.visibility>.5&&lb.visibility>.5){ctx.beginPath();ctx.moveTo(la.x*w,la.y*h);ctx.lineTo(lb.x*w,lb.y*h);ctx.stroke();}
-  });
-  ctx.shadowBlur=0;
-  lms.forEach(lm=>{
-    if(lm.visibility>.5){ctx.beginPath();ctx.arc(lm.x*w,lm.y*h,3.5,0,Math.PI*2);ctx.fillStyle='rgba(0,240,255,.85)';ctx.fill();}
-  });
-}
+  document.getElementById('resInfo').textContent=w+'×'+h;
+  const lat=Math.round(now-(state.lastFrameTime||now));
+  document.getElementById('latInfo').textContent=lat;
+  state.lastFrameTime=now;
 
-function drawLbl(lms,angles,flags,w,h){
-  const fs=Math.max(10,Math.min(13,w/100));
-  ctx.font=`bold ${fs}px monospace`;ctx.textAlign='center';ctx.textBaseline='middle';
-  ANGLE_MAP.forEach(([key,,pts,side])=>{
-    if(!S.enabled[key]||angles[key]==null)return;
-    const lm=lms[pts[1]];if(!lm||lm.visibility<.4)return;
-    const x=lm.x*w,y=lm.y*h-20;
-    const t=`${angles[key]}°`,m=ctx.measureText(t),bw=m.width+10,bh=18;
-    const isF=flags.includes(key);
-    const col=side==='l'?'#ff9100':side==='r'?'#448aff':'#7c5bf5';
-    ctx.fillStyle='rgba(0,0,0,.7)';ctx.beginPath();ctx.roundRect(x-bw/2,y-bh/2,bw,bh,3);ctx.fill();
-    ctx.strokeStyle=isF?'#ff9100':col;ctx.lineWidth=isF?2:1;ctx.beginPath();ctx.roundRect(x-bw/2,y-bh/2,bw,bh,3);ctx.stroke();
-    ctx.fillStyle=isF?'#ff9100':col;ctx.fillText(t,x,y);
-  });
-}
+  // Compute overall confidence
+  let confSum=0,confN=0;
+  for(const j of ALL_JOINTS){
+    const pts=j.a;
+    const minVis=Math.min(lm[pts[0]].visibility,lm[pts[1]].visibility,lm[pts[2]].visibility);
+    latestConfidences[j.id]=minVis;
+    confSum+=minVis;confN++;
+  }
+  state.latestConfidence=confSum/confN;
+  updateQualityBadge(state.latestConfidence);
 
-function drawCOG(lms,w,h){
-  const ls=lms[11],rs=lms[12],lh=lms[23],rh=lms[24];
-  if(!ls||!rs||!lh||!rh||ls.visibility<.4)return;
-  const cx=((ls.x+rs.x+lh.x+rh.x)/4)*w,cy=((ls.y+rs.y+lh.y+rh.y)/4)*h;
-  const g=ctx.createRadialGradient(cx,cy,0,cx,cy,18);
-  g.addColorStop(0,'rgba(255,61,90,.6)');g.addColorStop(1,'rgba(255,61,90,0)');
-  ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,18,0,Math.PI*2);ctx.fill();
-  ctx.beginPath();ctx.arc(cx,cy,3.5,0,Math.PI*2);ctx.fillStyle='#ff3d5a';ctx.fill();
-}
+  // Grid
+  if(state.grid)drawGrid(w,h);
+  // Skeleton
+  if(state.skeleton)drawSkeleton(lm,w,h);
+  // COG
+  if(state.cog)drawCOG(lm,w,h);
+  // Trail
+  if(state.trail)drawTrail(lm,w,h);
 
-function drawTrace(lms,w,h){
-  const rw=lms[16];
-  if(rw&&rw.visibility>.5){S.tracePoints.push({x:rw.x*w,y:rw.y*h});if(S.tracePoints.length>C.traceMax)S.tracePoints.shift();}
-  if(S.tracePoints.length<2)return;
-  for(let i=1;i<S.tracePoints.length;i++){
-    const a=i/S.tracePoints.length;
-    ctx.beginPath();ctx.moveTo(S.tracePoints[i-1].x,S.tracePoints[i-1].y);ctx.lineTo(S.tracePoints[i].x,S.tracePoints[i].y);
-    ctx.strokeStyle=`rgba(124,91,245,${a*.7})`;ctx.lineWidth=1+a*2;ctx.stroke();
+  // Angles (raw + filtered for display)
+  const rawAngles=calcAllAngles(lm);
+  latestAngles=rawAngles;
+  const filteredAngles={};
+  for(const[k,v]of Object.entries(rawAngles)){
+    let fv=Math.round(filters[k].filter(v));
+    fv=Math.max(0,Math.min(180,fv));
+    filteredAngles[k]=fv+state.calibOffset;
+  }
+
+  if(state.angles)drawAnglesOnCanvas(lm,filteredAngles,w,h);
+  updateAnglePanel(filteredAngles);
+  updateWaveform(filteredAngles);
+
+  // Rec time display
+  if(state.recording){
+    const t=(now-state.recStart)/1000;
+    document.getElementById('recTime').textContent=formatTimeSec(t);
   }
 }
 
-// ============================================================
-//  UI UPDATES
-// ============================================================
-function buildAngleList(){
-  const list=document.getElementById('angleList');
-  ANGLE_MAP.forEach(([key,name,,side])=>{
-    const el=document.createElement('div');
-    el.className=`ai ${side}`;el.id=`ai-${key}`;
-    el.innerHTML=`<span class="n">${name}</span><span class="v off" id="av-${key}">—</span>`;
-    el.onclick=()=>{S.enabled[key]=!S.enabled[key];el.classList.toggle('dis');};
-    list.appendChild(el);
-  });
+function updateQualityBadge(conf){
+  const el=document.getElementById('qualBadge');
+  if(conf>.75){el.textContent='高质量';el.className='q-high'}
+  else if(conf>.5){el.textContent='中等';el.className='q-mid'}
+  else{el.textContent='低质量';el.className='q-low'}
 }
 
-function updateAngleList(angles,flags){
-  ANGLE_MAP.forEach(([key])=>{
-    const el=document.getElementById(`av-${key}`),item=document.getElementById(`ai-${key}`);if(!el||!item)return;
-    item.style.display='flex';
-    if(angles[key]!=null){el.textContent=angles[key]+'°';el.className='v'+(flags.includes(key)?' w':' on');}
-    else{el.textContent='—';el.className='v off';}
-  });
+// ===== DRAWING =====
+function drawGrid(w,h){
+  ctx.strokeStyle='rgba(0,240,255,.05)';ctx.lineWidth=1;
+  for(let x=0;x<w;x+=w/10){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}
+  for(let y=0;y<h;y+=h/8){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
 }
 
-function updateSym(angles){
-  [['lShoulder','rShoulder','sSh'],['lElbow','rElbow','sEl'],['lHip','rHip','sHp'],['lKnee','rKnee','sKn']].forEach(([lk,rk,id])=>{
-    const el=document.getElementById(id);if(!el)return;
-    if(angles[lk]==null||angles[rk]==null){el.style.width='50%';el.className='sf ok';return;}
-    const d=angles[lk]-angles[rk],pct=Math.max(5,Math.min(95,50+(d/90)*50));
-    el.style.width=pct+'%';el.className='sf'+(Math.abs(d)<5?' ok':d>0?' ll':' rr');
-  });
+function drawSkeleton(lm,w,h){
+  ctx.lineWidth=2.5;ctx.lineCap='round';
+  for(const[a,b]of CONNECTIONS){
+    const pa=lm[a],pb=lm[b];
+    if(pa.visibility<.5||pb.visibility<.5)continue;
+    const grad=ctx.createLinearGradient(pa.x*w,pa.y*h,pb.x*w,pb.y*h);
+    grad.addColorStop(0,'rgba(0,240,255,.7)');grad.addColorStop(1,'rgba(124,91,245,.7)');
+    ctx.strokeStyle=grad;ctx.beginPath();ctx.moveTo(pa.x*w,pa.y*h);ctx.lineTo(pb.x*w,pb.y*h);ctx.stroke();
+  }
+  for(let i=0;i<33;i++){
+    const p=lm[i];if(p.visibility<.5)continue;
+    ctx.beginPath();ctx.arc(p.x*w,p.y*h,3,0,Math.PI*2);
+    ctx.fillStyle=p.visibility>.75?'rgba(0,240,255,.9)':'rgba(255,145,0,.7)';ctx.fill();
+  }
 }
 
-function updateWarn(flags){
-  const bar=document.getElementById('warnBar');
-  if(flags.length>0){bar.classList.add('show');document.getElementById('warnMsg').textContent=`⚠ ${flags.join(', ')}`;}
-  else bar.classList.remove('show');
-  document.getElementById('outCnt').textContent=S.outlierCount;
+function drawCOG(lm,w,h){
+  const pts=[11,12,23,24];let cx=0,cy=0,n=0;
+  for(const i of pts){if(lm[i].visibility>.5){cx+=lm[i].x;cy+=lm[i].y;n++}}
+  if(n<2)return;cx=cx/n*w;cy=cy/n*h;
+  ctx.beginPath();ctx.arc(cx,cy,7,0,Math.PI*2);ctx.strokeStyle='rgba(255,145,0,.7)';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,2,0,Math.PI*2);ctx.fillStyle='#ff9100';ctx.fill();
+  ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,h);ctx.strokeStyle='rgba(255,145,0,.1)';ctx.lineWidth=1;ctx.stroke();ctx.setLineDash([]);
 }
 
-function updateFPS(){
-  S.fpsFrames++;const now=performance.now();
-  if(now-S.lastTime>=1000){S.fps=S.fpsFrames;S.fpsFrames=0;S.lastTime=now;document.getElementById('fpsTx').textContent=S.fps+'fps';}
-}
-
-// ============================================================
-//  RECORDING (raw data at actual frame rate, resampled on export)
-// ============================================================
-function toggleRec(){S.isRec?stopRec():startRec();}
-
-function startRec(){
-  S.recRaw=[];S.recChunks=[];S.outlierCount=0;S.recStart=performance.now();S.isRec=true;
-  resetFilters();
-  try{
-    const mt=MediaRecorder.isTypeSupported('video/webm;codecs=vp9')?'video/webm;codecs=vp9':'video/webm';
-    S.mRec=new MediaRecorder(canvas.captureStream(30),{mimeType:mt});
-    S.mRec.ondataavailable=e=>{if(e.data.size>0)S.recChunks.push(e.data)};S.mRec.start(100);
-  }catch(e){}
-  document.getElementById('btnRec').textContent='⏹';document.getElementById('btnRec').classList.add('active');
-  document.getElementById('recBadge').classList.add('show');
-  document.getElementById('btnExp').disabled=true;document.getElementById('btnVid').disabled=true;
-  S.recTimer=setInterval(()=>{
-    const el=(performance.now()-S.recStart)/1000;
-    const t=`${String(Math.floor(el/60)).padStart(2,'0')}:${String(Math.floor(el%60)).padStart(2,'0')}`;
-    document.getElementById('recTime').textContent=t;document.getElementById('recTimeTop').textContent=t;
-    document.getElementById('frmCnt').textContent=S.recRaw.length;
-  },200);
-}
-
-function recordFrame(rawAngles,filteredAngles,flags){
-  const t=(performance.now()-S.recStart)/1000;
-  const frame={time:t,flags:flags.length};
-  ALL_KEYS.forEach(k=>{
-    frame[k+'_raw']=rawAngles[k]!=null?rawAngles[k]:null;
-    frame[k]=filteredAngles[k]!=null?filteredAngles[k]:null;
-    // Store confidence for each angle's vertex landmark
-    const pts=ANGLE_MAP.find(a=>a[0]===k);
-    if(pts&&S.landmarks){
-      const idx=pts[2][1];
-      frame[k+'_conf']=S.landmarks[idx]?Math.round(S.landmarks[idx].visibility*100)/100:0;
+function drawTrail(lm,w,h){
+  for(const i of[15,16,27,28]){
+    if(lm[i].visibility<.5)continue;
+    if(!state.trailPoints[i])state.trailPoints[i]=[];
+    state.trailPoints[i].push({x:lm[i].x*w,y:lm[i].y*h});
+    if(state.trailPoints[i].length>50)state.trailPoints[i].shift();
+    const pts=state.trailPoints[i];
+    for(let j=1;j<pts.length;j++){
+      const a=j/pts.length;
+      ctx.beginPath();ctx.moveTo(pts[j-1].x,pts[j-1].y);ctx.lineTo(pts[j].x,pts[j].y);
+      ctx.strokeStyle=i<20?`rgba(0,240,255,${a*.5})`:`rgba(124,91,245,${a*.5})`;ctx.lineWidth=1.5*a;ctx.stroke();
     }
-  });
-  S.recRaw.push(frame);
-}
-
-function stopRec(){
-  S.isRec=false;if(S.mRec&&S.mRec.state!=='inactive')S.mRec.stop();clearInterval(S.recTimer);
-  document.getElementById('btnRec').textContent='⏺';document.getElementById('btnRec').classList.remove('active');
-  document.getElementById('recBadge').classList.remove('show');
-  if(S.recRaw.length>0)document.getElementById('btnExp').disabled=false;
-  if(S.recChunks.length>0)document.getElementById('btnVid').disabled=false;
-}
-
-// ============================================================
-//  EXPORT - 50Hz RESAMPLED + METHOD SHEET
-// ============================================================
-function resampleTo50Hz(raw){
-  if(raw.length<2)return raw;
-  const duration=raw[raw.length-1].time;
-  const interval=1/C.sampleRate; // 0.02s
-  const resampled=[];
-  for(let t=0;t<=duration;t+=interval){
-    // Find surrounding frames
-    let i=0;while(i<raw.length-1&&raw[i+1].time<t)i++;
-    if(i>=raw.length-1){resampled.push({...raw[raw.length-1],time:Math.round(t*1000)/1000});continue;}
-    const f0=raw[i],f1=raw[i+1];
-    const ratio=(t-f0.time)/(f1.time-f0.time||1);
-    const frame={time:Math.round(t*1000)/1000,flags:0};
-    ALL_KEYS.forEach(k=>{
-      const v0=f0[k],v1=f1[k];
-      if(v0!=null&&v1!=null)frame[k]=Math.round((v0+(v1-v0)*ratio)*10)/10;
-      else frame[k]=v0!=null?v0:v1;
-      // Confidence: take lower
-      const c0=f0[k+'_conf']||0,c1=f1[k+'_conf']||0;
-      frame[k+'_conf']=Math.min(c0,c1);
-    });
-    resampled.push(frame);
   }
-  return resampled;
 }
 
-function exportExcel(){
-  const raw=S.recRaw;if(!raw.length)return;
-  // Collect experiment info at export time
-  const sid=prompt('被试编号 (如 S001):','S001')||'unknown';
-  const cond=prompt('实验条件 (baseline/pre/post/follow):','baseline')||'baseline';
-  const mov=prompt('动作类型 (squat/gait/jump/sprint):','squat')||'squat';
-  S.experiment={subjectId:sid,condition:cond,movement:mov,notes:'',startTime:new Date().toISOString()};
-  const resampled=resampleTo50Hz(raw);
+function drawAnglesOnCanvas(lm,angles,w,h){
+  for(const j of ALL_JOINTS){
+    const mid=lm[j.a[1]];if(mid.visibility<.5)continue;
+    const val=angles[j.id];if(val===undefined)continue;
+    const x=mid.x*w,y=mid.y*h;
+    ctx.font='bold 9px monospace';
+    ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(x+5,y-6,34,13);
+    ctx.fillStyle='#00f0ff';ctx.fillText(val+'°',x+7,y+4);
+  }
+}
 
-  // Sheet 1: Filtered data at 50Hz
-  const cols=['时间(s)',...ALL_KEYS.map(k=>{const m=ANGLE_MAP.find(a=>a[0]===k);return m?m[1]+'(°)':k}),...ALL_KEYS.map(k=>'置信度_'+k)];
-  const rows=resampled.map(r=>{
-    const row=[r.time];
-    ALL_KEYS.forEach(k=>row.push(r[k]!=null?r[k]:''));
-    ALL_KEYS.forEach(k=>row.push(r[k+'_conf']!=null?r[k+'_conf']:''));
-    return row;
-  });
-  const ws1=XLSX.utils.aoa_to_sheet([cols,...rows]);
-  ws1['!freeze']={xSplit:1,ySplit:1};
+// ===== ANGLE MATH =====
+function calcAngle(a,b,c){
+  const ab={x:a.x-b.x,y:a.y-b.y,z:(a.z||0)-(b.z||0)};
+  const cb={x:c.x-b.x,y:c.y-b.y,z:(c.z||0)-(b.z||0)};
+  const dot=ab.x*cb.x+ab.y*cb.y+ab.z*cb.z;
+  const mA=Math.sqrt(ab.x**2+ab.y**2+ab.z**2);
+  const mC=Math.sqrt(cb.x**2+cb.y**2+cb.z**2);
+  if(mA*mC===0)return null;
+  return Math.round(Math.acos(Math.max(-1,Math.min(1,dot/(mA*mC))))*180/Math.PI);
+}
 
-  // Sheet 2: Method description
-  const method=[
-    ['MotionAngle Pro v3.2 — 实验数据导出'],[''],
-    ['被试编号',S.experiment.subjectId],
-    ['实验条件',S.experiment.condition],
-    ['动作类型',S.experiment.movement],
-    ['实验开始时间',S.experiment.startTime],
-    ['导出时间',new Date().toISOString()],
-    ['备注',S.experiment.notes],[''],
-    ['=== 方法学参数 ==='],
-    ['姿态估计模型','MediaPipe BlazePose (Google, 2023)'],
-    ['模型复杂度','Full (modelComplexity=2)'],
-    ['关键点数量','33 (全身)'],
-    ['角度计算方法','2D 三点向量夹角 (arccos of dot product)'],
-    ['置信度阈值',C.confThreshold+' (低于此值输出为空值NaN)'],
-    ['滤波方法','Butterworth low-pass filter'],
-    ['滤波阶数',C.filterOrder+'th order (2nd order applied twice)'],
-    ['截止频率',C.filterCutoff+' Hz'],
-    ['输出采样率',C.sampleRate+' Hz (线性插值重采样)'],
-    ['异常检测阈值',C.outlierDeg+'°/帧 (帧间角度变化超过此值标记为异常)'],[''],
-    ['=== 数据说明 ==='],
-    ['时间(s)','从录制开始的秒数，间隔0.02s'],
-    ['角度列','各关节角度（度），空值表示该帧置信度低于阈值'],
-    ['置信度列','对应关节顶点的检测置信度(0-1)，建议分析时排除<0.6的数据'],[''],
-    ['=== 引用建议 ==='],
-    ['','Bazarevsky, V., et al. (2020). BlazePose: On-device Real-time Body Pose Tracking. arXiv:2006.10204'],
-    ['','Lugaresi, C., et al. (2019). MediaPipe: A Framework for Building Perception Pipelines. arXiv:1906.08172'],
-  ];
-  const ws2=XLSX.utils.aoa_to_sheet(method);
+function calcAllAngles(lm){
+  const out={};
+  for(const j of ALL_JOINTS){
+    const[a,b,c]=j.a;
+    if(lm[a].visibility>.5&&lm[b].visibility>.5&&lm[c].visibility>.5)out[j.id]=calcAngle(lm[a],lm[b],lm[c]);
+  }
+  return out;
+}
 
+// ===== PANEL UPDATE =====
+function updateAnglePanel(angles){
+  updateSide('anglesL',JOINTS.L,angles);
+  updateSide('anglesR',JOINTS.R,angles);
+  updateSide('anglesC',JOINTS.C,angles);
+}
+
+function updateSide(elId,joints,angles){
+  const el=document.getElementById(elId);let html='';
+  for(const j of joints){
+    if(state.view!=='all'){
+      if(state.view==='upper'&&!UPPER_IDS.includes(j.id))continue;
+      if(state.view==='lower'&&!LOWER_IDS.includes(j.id))continue;
+      if(state.view==='core'&&!CORE_IDS.includes(j.id))continue;
+    }
+    const val=angles[j.id];
+    const conf=latestConfidences[j.id]||0;
+    const cls=val!==undefined?(val<30||val>160?'w':'on'):'off';
+    const confCls=conf>.75?'conf-h':conf>.5?'conf-m':'conf-l';
+    const side=JOINTS.L.includes(j)?'l':JOINTS.R.includes(j)?'r':'c';
+    html+=`<div class="ai ${side}${val===undefined?' dis':''}"><span class="n">${j.name}</span><span class="v ${cls}">${val!==undefined?val+'°':'--'}</span><span class="conf ${confCls}"></span></div>`;
+  }
+  el.innerHTML=html;
+}
+
+// ===== WAVEFORM =====
+function updateWaveform(angles){
+  const key=state.view==='upper'?'l_elbow':state.view==='lower'?'l_knee':'l_shoulder';
+  const val=angles[key];if(val===undefined)return;
+  state.waveData.push(val);if(state.waveData.length>80)state.waveData.shift();
+  const ww=waveCanvas.width=waveCanvas.clientWidth*2,wh=waveCanvas.height=waveCanvas.clientHeight*2;
+  waveCtx.clearRect(0,0,ww,wh);
+  waveCtx.beginPath();const step=ww/80;
+  for(let i=0;i<state.waveData.length;i++){const x=i*step,y=wh-(state.waveData[i]/180)*wh;i===0?waveCtx.moveTo(x,y):waveCtx.lineTo(x,y)}
+  waveCtx.strokeStyle='rgba(0,240,255,.6)';waveCtx.lineWidth=1.5;waveCtx.stroke();
+  waveCtx.lineTo((state.waveData.length-1)*step,wh);waveCtx.lineTo(0,wh);waveCtx.closePath();
+  waveCtx.fillStyle='rgba(0,240,255,.04)';waveCtx.fill();
+}
+
+// ===== CALIBRATION =====
+function showCalibration(){document.getElementById('calibModal').classList.add('show')}
+function skipCalibration(){document.getElementById('calibModal').classList.remove('show')}
+
+function startCalibration(){
+  const status=document.getElementById('calibStatus');
+  status.textContent='正在采集数据... 请保持直角在画面中';
+  let samples=[];let count=0;
+  const iv=setInterval(()=>{
+    if(state.latestLandmarks){
+      // Use elbow angle as reference — user should hold arm at 90°
+      const lm=state.latestLandmarks;
+      const angle=calcAngle(lm[11],lm[13],lm[15]);
+      if(angle!==null)samples.push(angle);
+    }
+    count++;
+    if(count>=60){// 2 seconds at 30fps
+      clearInterval(iv);
+      if(samples.length>10){
+        const avg=samples.reduce((a,b)=>a+b,0)/samples.length;
+        state.calibOffset=Math.round(90-avg);
+        state.calibrated=true;
+        status.textContent=`✓ 校准完成！偏差补偿: ${state.calibOffset>0?'+':''}${state.calibOffset}°`;
+        status.style.color='var(--green)';
+        document.getElementById('calibInfo').textContent=`校准:${state.calibOffset>0?'+':''}${state.calibOffset}°`;
+        setTimeout(()=>document.getElementById('calibModal').classList.remove('show'),1500);
+      }else{
+        status.textContent='采集失败，请确保人体在画面中';status.style.color='var(--red)';
+      }
+    }
+  },33);
+}
+
+// ===== CONTROLS =====
+function toggle(key){
+  state[key]=!state[key];
+  const map={skeleton:'btnSkel',angles:'btnAng',cog:'btnCog',trail:'btnTrail',grid:'btnGrid',mirror:'btnMirror'};
+  document.getElementById(map[key])?.classList.toggle('on',state[key]);
+  if(key==='mirror')video.classList.toggle('mirror',state.mirror);
+  if(key==='trail'&&!state.trail)state.trailPoints={};
+}
+
+function setView(v,btn){
+  state.view=v;state.waveData=[];
+  document.querySelectorAll('.vt button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+}
+
+function switchSource(src){
+  document.querySelectorAll('#srcTabs button').forEach(b=>b.classList.remove('on'));
+  event.target.classList.add('on');
+  if(src==='file'){document.getElementById('videoFile').click()}
+  else if(src==='cam'){
+    if(video.src){video.src='';video.srcObject=null}
+    startCamera();document.getElementById('progressBar').classList.remove('show');
+  }
+}
+
+document.getElementById('videoFile').onchange=function(e){
+  const file=e.target.files[0];if(!file)return;
+  if(video.srcObject){video.srcObject.getTracks().forEach(t=>t.stop());video.srcObject=null}
+  video.src=URL.createObjectURL(file);video.muted=true;video.loop=true;video.play();
+  document.getElementById('dotCam').className='dot dot-on';
+  document.getElementById('progressBar').classList.add('show');
+  video.ontimeupdate=()=>{if(video.duration)document.getElementById('progressFill').style.width=(video.currentTime/video.duration*100)+'%'};
+  state.source='file';
+};
+
+document.getElementById('progressBar').onclick=function(e){if(video.duration)video.currentTime=e.offsetX/this.clientWidth*video.duration};
+
+// ===== RECORDING & TRIALS =====
+function toggleRec(){
+  state.recording=!state.recording;
+  const btn=document.getElementById('btnRec'),badge=document.getElementById('recBadge');
+  if(state.recording){
+    state.recData=[];state.recStart=performance.now();state.trialMarkers=[];state.currentTrial=1;
+    // Reset filters
+    for(const f of Object.values(filters))f.reset();
+    btn.classList.add('active');btn.textContent='■ 停止';
+    badge.classList.add('show');
+    document.getElementById('btnExport').disabled=true;
+    document.getElementById('btnMark').disabled=false;
+    document.getElementById('trialNum').textContent='1';
+    document.getElementById('trialBadge').classList.add('show');
+    document.getElementById('trialCount').textContent='1';
+    startSampler();
+  }else{
+    btn.classList.remove('active');btn.textContent='● 录制';
+    badge.classList.remove('show');
+    stopSampler();
+    if(state.recData.length>0){
+      document.getElementById('btnExport').disabled=false;
+      document.getElementById('trialCount').textContent=state.currentTrial;
+    }
+    document.getElementById('btnMark').disabled=true;
+  }
+}
+
+function markTrial(){
+  if(!state.recording)return;
+  state.trialMarkers.push(state.recData.length);
+  state.currentTrial++;
+  document.getElementById('trialNum').textContent=state.currentTrial;
+  document.getElementById('trialCount').textContent=state.currentTrial;
+  // Visual feedback
+  const btn=document.getElementById('btnMark');
+  btn.style.background='rgba(255,145,0,.3)';
+  setTimeout(()=>btn.style.background='',200);
+}
+
+// ===== EXPORT =====
+function exportData(){
+  if(!state.recData.length)return;
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws1,'角度数据_50Hz');
-  XLSX.utils.book_append_sheet(wb,ws2,'方法说明');
 
-  const fn=`${S.experiment.subjectId}_${S.experiment.movement}_${S.experiment.condition}_${new Date().toISOString().slice(0,10)}.xlsx`;
-  XLSX.writeFile(wb,fn);
+  // Metadata sheet
+  const meta=[
+    ['MotionAngle Pro v5.0 — 数据导出报告'],
+    ['导出时间',new Date().toISOString()],
+    ['采样率(Hz)',SAMPLE_RATE],
+    ['总帧数',state.recData.length],
+    ['总时长(s)',+(state.recData[state.recData.length-1].time).toFixed(2)],
+    ['试次数',state.currentTrial],
+    ['校准偏差(°)',state.calibOffset],
+    ['已校准',state.calibrated?'是':'否'],
+    ['模型','MediaPipe Pose v0.5 (BlazePose GHUM)'],
+    ['模型复杂度','1 (Full)'],
+    ['滤波器','Butterworth 2nd-order LP, fc=4Hz'],
+    ['设备',navigator.userAgent.slice(0,80)],
+    ['分辨率',document.getElementById('resInfo').textContent],
+    [''],
+    ['列说明:'],
+    ['time','采样时间(秒)'],
+    ['trial','试次编号'],
+    ['quality','该帧综合置信度(0-1)'],
+    ['xxx_raw','原始角度(未滤波)'],
+    ['xxx','滤波后角度(Butterworth 4Hz LP)'],
+    ['xxx_conf','该关节置信度(0-1)']
+  ];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(meta),'元数据');
+
+  // Split by trial
+  if(state.trialMarkers.length>0){
+    const boundaries=[0,...state.trialMarkers,state.recData.length];
+    for(let i=0;i<boundaries.length-1;i++){
+      const slice=state.recData.slice(boundaries[i],boundaries[i+1]);
+      if(slice.length>0)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(slice),'试次'+(i+1));
+    }
+  }else{
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(state.recData),'全部数据');
+  }
+
+  // Summary statistics per trial
+  const stats=[];
+  const boundaries=[0,...state.trialMarkers,state.recData.length];
+  for(let t=0;t<boundaries.length-1;t++){
+    const slice=state.recData.slice(boundaries[t],boundaries[t+1]);
+    if(!slice.length)continue;
+    const row={trial:t+1,frames:slice.length,duration:+(slice[slice.length-1].time-slice[0].time).toFixed(2)};
+    for(const j of ALL_JOINTS){
+      const vals=slice.map(r=>r[j.id]).filter(v=>v!==undefined);
+      if(vals.length){
+        row[j.id+'_mean']=+(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
+        row[j.id+'_min']=Math.min(...vals);
+        row[j.id+'_max']=Math.max(...vals);
+        row[j.id+'_range']=Math.max(...vals)-Math.min(...vals);
+        // SD
+        const mean=vals.reduce((a,b)=>a+b,0)/vals.length;
+        row[j.id+'_sd']=+Math.sqrt(vals.reduce((a,b)=>a+(b-mean)**2,0)/vals.length).toFixed(2);
+      }
+    }
+    stats.push(row);
+  }
+  if(stats.length)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(stats),'统计摘要');
+
+  const filename='MotionAngle_'+new Date().toISOString().slice(0,19).replace(/[T:]/g,'-')+'.xlsx';
+  XLSX.writeFile(wb,filename);
+
+  // Also export CSV for universal compatibility
+  const csvRows=[Object.keys(state.recData[0]).join(',')];
+  for(const row of state.recData)csvRows.push(Object.values(row).join(','));
+  const csvBlob=new Blob([csvRows.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(csvBlob);
+  a.download=filename.replace('.xlsx','.csv');a.click();
 }
 
-function exportVideo(){
-  if(!S.recChunks.length)return;
-  const blob=new Blob(S.recChunks,{type:'video/webm'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download=`${S.experiment.subjectId}_${S.experiment.movement}_${Date.now()}.webm`;a.click();
-}
-
-// ============================================================
-//  BINDINGS
-// ============================================================
-function bindUI(){
-
-  document.querySelectorAll('#srcTabs button').forEach(b=>b.addEventListener('click',()=>{
-    document.querySelectorAll('#srcTabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
-    video.style.display='';canvas.style.pointerEvents='none';
-    const src=b.dataset.src;
-    if(src==='camera')startCamera();else if(src==='video')loadVideoSrc();else loadImageSrc();
-  }));
-
-  document.querySelectorAll('.vt button').forEach(b=>b.addEventListener('click',()=>{
-    document.querySelectorAll('.vt button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
-    S.view=b.dataset.v;
-  }));
-
-  document.querySelectorAll('#bottomBar button').forEach(b=>b.addEventListener('click',()=>{
-    const t=b.dataset.t;S.markers[t]=!S.markers[t];b.classList.toggle('on');
-    if(t==='symmetry')document.getElementById('symPanel').classList.toggle('show');
-  }));
-
-  document.getElementById('btnRec').addEventListener('click',toggleRec);
-  document.getElementById('btnExp').addEventListener('click',exportExcel);
-  document.getElementById('btnVid').addEventListener('click',exportVideo);
-
-  document.getElementById('progressBar').addEventListener('click',e=>{
-    if(!video.duration)return;
-    const rect=e.currentTarget.getBoundingClientRect();
-    video.currentTime=(e.clientX-rect.left)/rect.width*video.duration;
-  });
-}
-
-document.addEventListener('DOMContentLoaded',init);
+// ===== UTILS =====
+function formatTimeMs(s){const m=Math.floor(s/60),sec=Math.floor(s%60),ms=Math.floor((s%1)*1000);return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0')+'.'+String(ms).padStart(3,'0')}
+function formatTimeSec(s){const m=Math.floor(s/60),sec=Math.floor(s%60);return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0')}
 </script>
 </body>
 </html>
