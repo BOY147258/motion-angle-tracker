@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="screen-orientation" content="landscape">
 <title>MotionAngle Pro v3.2 — 运动分析系统</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" as="script" crossorigin>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <style>
@@ -347,7 +349,7 @@ async function loadPose(){
   document.getElementById('loadFill').style.width='40%';
   document.getElementById('placeholderText').textContent='加载 AI 模型...';
   pose=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${f}`});
-  pose.setOptions({modelComplexity:2,smoothLandmarks:true,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
+  pose.setOptions({modelComplexity:1,smoothLandmarks:true,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
   pose.onResults(onResults);
   await pose.initialize();
   S.modelReady=true;
