@@ -209,9 +209,9 @@ const ANGLE_MAP=[
   ['lHip','左髋',[11,23,25],'l'],['rHip','右髋',[12,24,26],'r'],
   ['lKnee','左膝',[23,25,27],'l'],['rKnee','右膝',[24,26,28],'r'],
   ['lAnkle','左踝',[25,27,31],'l'],['rAnkle','右踝',[26,28,32],'r'],
-  ['neck','颈部',[0,11,12],'c'],['trunk','躯干',[11,23,25],'c'],
 ];
-const VIEW_KEYS={front:['lShoulder','rShoulder','lElbow','rElbow','lHip','rHip','lKnee','rKnee','lWrist','rWrist'],side:['neck','trunk','lKnee','rKnee','lAnkle','rAnkle','lHip','rHip'],full:null};
+// All views show all 12 joint angles (shoulder/elbow/wrist/hip/knee/ankle × L/R)
+const VIEW_KEYS={front:null,side:null,full:null};
 const ALL_KEYS=ANGLE_MAP.map(a=>a[0]);
 
 let S={
@@ -430,7 +430,6 @@ function drawLbl(lms,angles,flags,w,h){
   ctx.font=`bold ${fs}px monospace`;ctx.textAlign='center';ctx.textBaseline='middle';
   ANGLE_MAP.forEach(([key,,pts,side])=>{
     if(!S.enabled[key]||angles[key]==null)return;
-    const vk=VIEW_KEYS[S.view];if(vk&&!vk.includes(key))return;
     const lm=lms[pts[1]];if(!lm||lm.visibility<.4)return;
     const x=lm.x*w,y=lm.y*h-20;
     const t=`${angles[key]}°`,m=ctx.measureText(t),bw=m.width+10,bh=18;
@@ -480,8 +479,6 @@ function buildAngleList(){
 function updateAngleList(angles,flags){
   ANGLE_MAP.forEach(([key])=>{
     const el=document.getElementById(`av-${key}`),item=document.getElementById(`ai-${key}`);if(!el||!item)return;
-    const vk=VIEW_KEYS[S.view];
-    if(vk&&!vk.includes(key)){item.style.display='none';return;}
     item.style.display='flex';
     if(angles[key]!=null){el.textContent=angles[key]+'°';el.className='v'+(flags.includes(key)?' w':' on');}
     else{el.textContent='—';el.className='v off';}
