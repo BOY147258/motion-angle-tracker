@@ -125,39 +125,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 </head>
 <body>
 
-<!-- ===== EXPERIMENT SETUP PAGE ===== -->
-<div id="setupPage">
-  <div class="setup-card">
-    <h1>◈ MotionAngle Pro</h1>
-    <div class="sub">运动关节角度分析系统 v3.2</div>
-    <div class="form-group"><label>被试编号 *</label><input type="text" id="subjectId" placeholder="如: S001"></div>
-    <div class="form-group"><label>实验条件</label>
-      <select id="condition">
-        <option value="baseline">基线测试 Baseline</option>
-        <option value="pre">干预前 Pre-test</option>
-        <option value="post">干预后 Post-test</option>
-        <option value="follow">随访 Follow-up</option>
-        <option value="custom">自定义</option>
-      </select>
-    </div>
-    <div class="form-group"><label>动作类型</label>
-      <select id="movement">
-        <option value="squat">深蹲 Squat</option>
-        <option value="gait">步态 Gait</option>
-        <option value="jump">跳跃 Jump</option>
-        <option value="throw">投掷 Throw</option>
-        <option value="sprint">冲刺 Sprint</option>
-        <option value="custom">自定义</option>
-      </select>
-    </div>
-    <div class="form-group"><label>备注</label><textarea id="notes" placeholder="实验备注（可选）"></textarea></div>
-    <button class="start-btn" id="startBtn">▶ 开始实验</button>
-    <div class="setup-footer">
-      模型: MediaPipe BlazePose (Google) · 采样率: 50Hz 重采样<br>
-      滤波: Butterworth 4th-order 6Hz low-pass · 置信度阈值: 0.6
-    </div>
-  </div>
-</div>
+<!-- Setup page removed: direct to main interface -->
 
 <!-- ===== MAIN INTERFACE ===== -->
 <div id="videoLayer"><video id="video" playsinline muted></video></div>
@@ -170,7 +138,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
   <div class="load-bar"><div class="load-fill" id="loadFill"></div></div>
 </div>
 
-<div class="fp" id="topBar" style="display:none">
+<div class="fp" id="topBar">
   <span class="logo-sm">◈ MOTION</span>
   <span><span class="dot dot-off" id="dotCam"></span>CAM</span>
   <span><span class="dot dot-off" id="dotModel"></span>AI</span>
@@ -178,7 +146,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
   <span id="fpsTx">—fps</span>
 </div>
 
-<div class="fp" id="srcTabs" style="display:none">
+<div class="fp" id="srcTabs">
   <button class="on" data-src="camera">📷</button>
   <button data-src="video">🎬</button>
   <button data-src="image">🖼</button>
@@ -186,7 +154,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 
 <div class="fp" id="recBadge"><span class="dot dot-rec"></span>REC <span id="recTimeTop">00:00</span></div>
 
-<div class="fp" id="anglePanel" style="display:none">
+<div class="fp" id="anglePanel">
   <div class="vt">
     <button class="on" data-v="front">正面</button>
     <button data-v="side">侧面</button>
@@ -196,7 +164,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
   <div id="angleList"></div>
 </div>
 
-<div class="fp" id="bottomBar" style="display:none">
+<div class="fp" id="bottomBar">
   <button class="on" data-t="skeleton">🦴</button>
   <button class="on" data-t="angles">📐</button>
   <button data-t="symmetry">⚖️</button>
@@ -204,7 +172,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
   <button data-t="trace">✏️</button>
 </div>
 
-<div class="fp" id="ctrlPanel" style="display:none">
+<div class="fp" id="ctrlPanel">
   <button class="rb" id="btnRec">⏺ 录制</button>
   <button class="eb" id="btnExp" disabled>📊</button>
   <button class="vb" id="btnVid" disabled>🎬</button>
@@ -220,7 +188,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 
 <div class="fp" id="warnBar"><span class="dot" style="background:var(--orange)"></span><span id="warnMsg"></span></div>
 
-<div class="fp" id="infoBar" style="display:none">
+<div class="fp" id="infoBar">
   <span>⏱<span class="rt" id="recTime">—</span></span>
   <span>帧<span class="hl" id="frmCnt">0</span></span>
   <span>异常<span style="color:var(--orange)" id="outCnt">0</span></span>
@@ -229,3 +197,493 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 <div id="progressBar"><div id="progressFill"></div></div>
 
 <script>
+// ============================================================
+//  CONSTANTS & STATE
+// ============================================================
+const C={outlierDeg:25,sampleRate:50,filterCutoff:6,filterOrder:4,confThreshold:0.6,traceMax:80};
+
+const ANGLE_MAP=[
+  ['lShoulder','左肩',[13,11,23],'l'],['rShoulder','右肩',[14,12,24],'r'],
+  ['lElbow','左肘',[11,13,15],'l'],['rElbow','右肘',[12,14,16],'r'],
+  ['lWrist','左腕',[13,15,19],'l'],['rWrist','右腕',[14,16,20],'r'],
+  ['lHip','左髋',[11,23,25],'l'],['rHip','右髋',[12,24,26],'r'],
+  ['lKnee','左膝',[23,25,27],'l'],['rKnee','右膝',[24,26,28],'r'],
+  ['lAnkle','左踝',[25,27,31],'l'],['rAnkle','右踝',[26,28,32],'r'],
+  ['neck','颈部',[0,11,12],'c'],['trunk','躯干',[11,23,25],'c'],
+];
+const VIEW_KEYS={front:['lShoulder','rShoulder','lElbow','rElbow','lHip','rHip','lKnee','rKnee','lWrist','rWrist'],side:['neck','trunk','lKnee','rKnee','lAnkle','rAnkle','lHip','rHip'],full:null};
+const ALL_KEYS=ANGLE_MAP.map(a=>a[0]);
+
+let S={
+  view:'front',cameraOn:false,modelReady:false,
+  isRec:false,recRaw:[],recChunks:[],recStart:0,mRec:null,recTimer:null,
+  outlierCount:0,frameCount:0,prevAngles:{},
+  enabled:{},markers:{skeleton:true,angles:true,symmetry:false,cog:false,trace:false},
+  tracePoints:[],landmarks:null,fps:0,lastTime:0,fpsFrames:0,
+  experiment:{subjectId:'',condition:'',movement:'',notes:'',startTime:null}
+};
+ALL_KEYS.forEach(k=>S.enabled[k]=true);
+
+// Butterworth filter state per angle
+let filterState={};
+ALL_KEYS.forEach(k=>{filterState[k]={x:[0,0],y:[0,0]};});
+
+let pose,video,canvas,ctx;
+
+// ============================================================
+//  BUTTERWORTH LOW-PASS FILTER (2nd order, applied twice = 4th order)
+// ============================================================
+function butterworthCoeffs(cutoff,sampleRate){
+  const w=Math.tan(Math.PI*cutoff/sampleRate);
+  const w2=w*w;
+  const r=Math.sqrt(2);
+  const d=1+r*w+w2;
+  return{b0:w2/d,b1:2*w2/d,b2:w2/d,a1:2*(w2-1)/d,a2:(1-r*w+w2)/d};
+}
+
+const BW=butterworthCoeffs(C.filterCutoff,C.sampleRate);
+
+function applyFilter(key,raw){
+  if(raw===null)return null;
+  const s=filterState[key];
+  // Direct Form II
+  const w=raw-BW.a1*s.x[0]-BW.a2*s.x[1];
+  const out=BW.b0*w+BW.b1*s.x[0]+BW.b2*s.x[1];
+  s.x[1]=s.x[0];s.x[0]=w;
+  return Math.round(out*10)/10;
+}
+
+function resetFilters(){ALL_KEYS.forEach(k=>{filterState[k]={x:[0,0],y:[0,0]};});}
+
+// ============================================================
+//  EXPERIMENT SETUP
+// ============================================================
+// Experiment info collected at export time via prompt
+function startExperiment(){}
+
+// ============================================================
+//  INIT
+// ============================================================
+function init(){
+  video=document.getElementById('video');
+  canvas=document.getElementById('canvas');
+  ctx=canvas.getContext('2d');
+  buildAngleList();
+  bindUI();
+  resize();
+  window.addEventListener('resize',resize);
+  startCamera();
+}
+
+function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
+
+// ============================================================
+//  SOURCE
+// ============================================================
+async function startCamera(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}}});
+    video.srcObject=stream;await video.play();
+    S.cameraOn=true;
+    document.getElementById('dotCam').className='dot dot-on';
+    document.getElementById('placeholder').style.display='none';
+    document.getElementById('progressBar').classList.remove('show');
+    loadPose();
+  }catch(e){
+    document.getElementById('placeholder').style.display='block';
+    document.getElementById('placeholderText').textContent='摄像头失败: '+e.message;
+  }
+}
+
+function stopCamera(){
+  if(video.srcObject){video.srcObject.getTracks().forEach(t=>t.stop());video.srcObject=null;}
+  S.cameraOn=false;S.landmarks=null;
+  document.getElementById('dotCam').className='dot dot-off';
+}
+
+function loadVideoSrc(){
+  const inp=document.getElementById('videoFile');inp.accept='video/*';
+  inp.onchange=e=>{
+    const f=e.target.files[0];if(!f)return;stopCamera();
+    video.src=URL.createObjectURL(f);video.loop=false;video.play();
+    S.cameraOn=true;video.style.display='';
+    document.getElementById('dotCam').className='dot dot-on';
+    document.getElementById('placeholder').style.display='none';
+    document.getElementById('progressBar').classList.add('show');
+    video.ontimeupdate=()=>{if(video.duration)document.getElementById('progressFill').style.width=(video.currentTime/video.duration*100)+'%';};
+    if(!S.modelReady)loadPose();else detectLoop();
+  };inp.click();
+}
+
+function loadImageSrc(){
+  const inp=document.getElementById('videoFile');inp.accept='image/*';
+  inp.onchange=e=>{
+    const f=e.target.files[0];if(!f)return;stopCamera();video.style.display='none';
+    const img=new Image();
+    img.onload=()=>{resize();ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      document.getElementById('placeholder').style.display='none';
+      if(S.modelReady)pose.send({image:img});else loadPose().then(()=>pose.send({image:img}));
+    };img.src=URL.createObjectURL(f);
+  };inp.click();
+}
+
+// ============================================================
+//  MEDIAPIPE
+// ============================================================
+async function loadPose(){
+  document.getElementById('placeholder').style.display='block';
+  document.getElementById('loadFill').style.width='40%';
+  document.getElementById('placeholderText').textContent='加载 AI 模型...';
+  pose=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${f}`});
+  pose.setOptions({modelComplexity:2,smoothLandmarks:true,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
+  pose.onResults(onResults);
+  await pose.initialize();
+  S.modelReady=true;
+  document.getElementById('loadFill').style.width='100%';
+  document.getElementById('dotModel').className='dot dot-on';
+  document.getElementById('placeholder').style.display='none';
+  detectLoop();
+}
+
+function detectLoop(){
+  if(!S.cameraOn||!S.modelReady)return;
+  if(video.readyState>=2)pose.send({image:video}).then(()=>requestAnimationFrame(detectLoop));
+  else requestAnimationFrame(detectLoop);
+}
+
+function onResults(results){
+  if(!results.poseLandmarks){S.landmarks=null;document.getElementById('dotDet').className='dot dot-off';document.getElementById('detTx').textContent='无人';return;}
+  S.landmarks=results.poseLandmarks;S.frameCount++;
+  document.getElementById('dotDet').className='dot dot-on';document.getElementById('detTx').textContent='✓';
+  updateFPS();
+
+  const rawAngles=calcAllAngles();
+  // Apply Butterworth filter
+  const angles={};
+  ALL_KEYS.forEach(k=>{angles[k]=S.enabled[k]?applyFilter(k,rawAngles[k]):null;});
+  const flags=detectOutliers(angles);
+
+  draw(angles,flags);
+  updateAngleList(angles,flags);
+  updateSym(angles);
+  updateWarn(flags);
+  if(S.isRec)recordFrame(rawAngles,angles,flags);
+}
+
+// ============================================================
+//  ANGLE CALCULATION
+// ============================================================
+function calcAngle(lms,a,b,c){
+  const la=lms[a],lb=lms[b],lc=lms[c];
+  if(!la||!lb||!lc)return null;
+  // Confidence threshold
+  if(la.visibility<C.confThreshold||lb.visibility<C.confThreshold||lc.visibility<C.confThreshold)return null;
+  const ba={x:la.x-lb.x,y:la.y-lb.y},bc={x:lc.x-lb.x,y:lc.y-lb.y};
+  const dot=ba.x*bc.x+ba.y*bc.y,mag=Math.sqrt(ba.x**2+ba.y**2)*Math.sqrt(bc.x**2+bc.y**2);
+  if(mag<1e-6)return null;
+  return Math.round(Math.acos(Math.max(-1,Math.min(1,dot/mag)))*180/Math.PI*10)/10;
+}
+
+function calcAllAngles(){
+  const a={};
+  ANGLE_MAP.forEach(([key,,pts])=>{if(S.enabled[key])a[key]=calcAngle(S.landmarks,pts[0],pts[1],pts[2]);});
+  return a;
+}
+
+function detectOutliers(angles){
+  const flags=[];
+  ALL_KEYS.forEach(k=>{
+    if(angles[k]!=null&&S.prevAngles[k]!=null&&Math.abs(angles[k]-S.prevAngles[k])>C.outlierDeg){flags.push(k);S.outlierCount++;}
+  });
+  S.prevAngles={...angles};return flags;
+}
+
+// ============================================================
+//  DRAWING
+// ============================================================
+function draw(angles,flags){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(!S.landmarks)return;
+  const w=canvas.width,h=canvas.height,lms=S.landmarks;
+  if(S.markers.skeleton)drawSkel(lms,w,h);
+  if(S.markers.angles)drawLbl(lms,angles,flags,w,h);
+  if(S.markers.cog)drawCOG(lms,w,h);
+  if(S.markers.trace)drawTrace(lms,w,h);
+}
+
+function drawSkel(lms,w,h){
+  const conns=[[11,13],[13,15],[12,14],[14,16],[11,12],[11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],[27,31],[28,32],[15,17],[15,19],[16,18],[16,20]];
+  ctx.shadowColor='rgba(0,240,255,.35)';ctx.shadowBlur=6;
+  ctx.strokeStyle='rgba(0,240,255,.5)';ctx.lineWidth=2;
+  conns.forEach(([a,b])=>{
+    const la=lms[a],lb=lms[b];
+    if(la&&lb&&la.visibility>.5&&lb.visibility>.5){ctx.beginPath();ctx.moveTo(la.x*w,la.y*h);ctx.lineTo(lb.x*w,lb.y*h);ctx.stroke();}
+  });
+  ctx.shadowBlur=0;
+  lms.forEach(lm=>{
+    if(lm.visibility>.5){ctx.beginPath();ctx.arc(lm.x*w,lm.y*h,3.5,0,Math.PI*2);ctx.fillStyle='rgba(0,240,255,.85)';ctx.fill();}
+  });
+}
+
+function drawLbl(lms,angles,flags,w,h){
+  const fs=Math.max(10,Math.min(13,w/100));
+  ctx.font=`bold ${fs}px monospace`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ANGLE_MAP.forEach(([key,,pts,side])=>{
+    if(!S.enabled[key]||angles[key]==null)return;
+    const vk=VIEW_KEYS[S.view];if(vk&&!vk.includes(key))return;
+    const lm=lms[pts[1]];if(!lm||lm.visibility<.4)return;
+    const x=lm.x*w,y=lm.y*h-20;
+    const t=`${angles[key]}°`,m=ctx.measureText(t),bw=m.width+10,bh=18;
+    const isF=flags.includes(key);
+    const col=side==='l'?'#ff9100':side==='r'?'#448aff':'#7c5bf5';
+    ctx.fillStyle='rgba(0,0,0,.7)';ctx.beginPath();ctx.roundRect(x-bw/2,y-bh/2,bw,bh,3);ctx.fill();
+    ctx.strokeStyle=isF?'#ff9100':col;ctx.lineWidth=isF?2:1;ctx.beginPath();ctx.roundRect(x-bw/2,y-bh/2,bw,bh,3);ctx.stroke();
+    ctx.fillStyle=isF?'#ff9100':col;ctx.fillText(t,x,y);
+  });
+}
+
+function drawCOG(lms,w,h){
+  const ls=lms[11],rs=lms[12],lh=lms[23],rh=lms[24];
+  if(!ls||!rs||!lh||!rh||ls.visibility<.4)return;
+  const cx=((ls.x+rs.x+lh.x+rh.x)/4)*w,cy=((ls.y+rs.y+lh.y+rh.y)/4)*h;
+  const g=ctx.createRadialGradient(cx,cy,0,cx,cy,18);
+  g.addColorStop(0,'rgba(255,61,90,.6)');g.addColorStop(1,'rgba(255,61,90,0)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,18,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,3.5,0,Math.PI*2);ctx.fillStyle='#ff3d5a';ctx.fill();
+}
+
+function drawTrace(lms,w,h){
+  const rw=lms[16];
+  if(rw&&rw.visibility>.5){S.tracePoints.push({x:rw.x*w,y:rw.y*h});if(S.tracePoints.length>C.traceMax)S.tracePoints.shift();}
+  if(S.tracePoints.length<2)return;
+  for(let i=1;i<S.tracePoints.length;i++){
+    const a=i/S.tracePoints.length;
+    ctx.beginPath();ctx.moveTo(S.tracePoints[i-1].x,S.tracePoints[i-1].y);ctx.lineTo(S.tracePoints[i].x,S.tracePoints[i].y);
+    ctx.strokeStyle=`rgba(124,91,245,${a*.7})`;ctx.lineWidth=1+a*2;ctx.stroke();
+  }
+}
+
+// ============================================================
+//  UI UPDATES
+// ============================================================
+function buildAngleList(){
+  const list=document.getElementById('angleList');
+  ANGLE_MAP.forEach(([key,name,,side])=>{
+    const el=document.createElement('div');
+    el.className=`ai ${side}`;el.id=`ai-${key}`;
+    el.innerHTML=`<span class="n">${name}</span><span class="v off" id="av-${key}">—</span>`;
+    el.onclick=()=>{S.enabled[key]=!S.enabled[key];el.classList.toggle('dis');};
+    list.appendChild(el);
+  });
+}
+
+function updateAngleList(angles,flags){
+  ANGLE_MAP.forEach(([key])=>{
+    const el=document.getElementById(`av-${key}`),item=document.getElementById(`ai-${key}`);if(!el||!item)return;
+    const vk=VIEW_KEYS[S.view];
+    if(vk&&!vk.includes(key)){item.style.display='none';return;}
+    item.style.display='flex';
+    if(angles[key]!=null){el.textContent=angles[key]+'°';el.className='v'+(flags.includes(key)?' w':' on');}
+    else{el.textContent='—';el.className='v off';}
+  });
+}
+
+function updateSym(angles){
+  [['lShoulder','rShoulder','sSh'],['lElbow','rElbow','sEl'],['lHip','rHip','sHp'],['lKnee','rKnee','sKn']].forEach(([lk,rk,id])=>{
+    const el=document.getElementById(id);if(!el)return;
+    if(angles[lk]==null||angles[rk]==null){el.style.width='50%';el.className='sf ok';return;}
+    const d=angles[lk]-angles[rk],pct=Math.max(5,Math.min(95,50+(d/90)*50));
+    el.style.width=pct+'%';el.className='sf'+(Math.abs(d)<5?' ok':d>0?' ll':' rr');
+  });
+}
+
+function updateWarn(flags){
+  const bar=document.getElementById('warnBar');
+  if(flags.length>0){bar.classList.add('show');document.getElementById('warnMsg').textContent=`⚠ ${flags.join(', ')}`;}
+  else bar.classList.remove('show');
+  document.getElementById('outCnt').textContent=S.outlierCount;
+}
+
+function updateFPS(){
+  S.fpsFrames++;const now=performance.now();
+  if(now-S.lastTime>=1000){S.fps=S.fpsFrames;S.fpsFrames=0;S.lastTime=now;document.getElementById('fpsTx').textContent=S.fps+'fps';}
+}
+
+// ============================================================
+//  RECORDING (raw data at actual frame rate, resampled on export)
+// ============================================================
+function toggleRec(){S.isRec?stopRec():startRec();}
+
+function startRec(){
+  S.recRaw=[];S.recChunks=[];S.outlierCount=0;S.recStart=performance.now();S.isRec=true;
+  resetFilters();
+  try{
+    const mt=MediaRecorder.isTypeSupported('video/webm;codecs=vp9')?'video/webm;codecs=vp9':'video/webm';
+    S.mRec=new MediaRecorder(canvas.captureStream(30),{mimeType:mt});
+    S.mRec.ondataavailable=e=>{if(e.data.size>0)S.recChunks.push(e.data)};S.mRec.start(100);
+  }catch(e){}
+  document.getElementById('btnRec').textContent='⏹';document.getElementById('btnRec').classList.add('active');
+  document.getElementById('recBadge').classList.add('show');
+  document.getElementById('btnExp').disabled=true;document.getElementById('btnVid').disabled=true;
+  S.recTimer=setInterval(()=>{
+    const el=(performance.now()-S.recStart)/1000;
+    const t=`${String(Math.floor(el/60)).padStart(2,'0')}:${String(Math.floor(el%60)).padStart(2,'0')}`;
+    document.getElementById('recTime').textContent=t;document.getElementById('recTimeTop').textContent=t;
+    document.getElementById('frmCnt').textContent=S.recRaw.length;
+  },200);
+}
+
+function recordFrame(rawAngles,filteredAngles,flags){
+  const t=(performance.now()-S.recStart)/1000;
+  const frame={time:t,flags:flags.length};
+  ALL_KEYS.forEach(k=>{
+    frame[k+'_raw']=rawAngles[k]!=null?rawAngles[k]:null;
+    frame[k]=filteredAngles[k]!=null?filteredAngles[k]:null;
+    // Store confidence for each angle's vertex landmark
+    const pts=ANGLE_MAP.find(a=>a[0]===k);
+    if(pts&&S.landmarks){
+      const idx=pts[2][1];
+      frame[k+'_conf']=S.landmarks[idx]?Math.round(S.landmarks[idx].visibility*100)/100:0;
+    }
+  });
+  S.recRaw.push(frame);
+}
+
+function stopRec(){
+  S.isRec=false;if(S.mRec&&S.mRec.state!=='inactive')S.mRec.stop();clearInterval(S.recTimer);
+  document.getElementById('btnRec').textContent='⏺';document.getElementById('btnRec').classList.remove('active');
+  document.getElementById('recBadge').classList.remove('show');
+  if(S.recRaw.length>0)document.getElementById('btnExp').disabled=false;
+  if(S.recChunks.length>0)document.getElementById('btnVid').disabled=false;
+}
+
+// ============================================================
+//  EXPORT - 50Hz RESAMPLED + METHOD SHEET
+// ============================================================
+function resampleTo50Hz(raw){
+  if(raw.length<2)return raw;
+  const duration=raw[raw.length-1].time;
+  const interval=1/C.sampleRate; // 0.02s
+  const resampled=[];
+  for(let t=0;t<=duration;t+=interval){
+    // Find surrounding frames
+    let i=0;while(i<raw.length-1&&raw[i+1].time<t)i++;
+    if(i>=raw.length-1){resampled.push({...raw[raw.length-1],time:Math.round(t*1000)/1000});continue;}
+    const f0=raw[i],f1=raw[i+1];
+    const ratio=(t-f0.time)/(f1.time-f0.time||1);
+    const frame={time:Math.round(t*1000)/1000,flags:0};
+    ALL_KEYS.forEach(k=>{
+      const v0=f0[k],v1=f1[k];
+      if(v0!=null&&v1!=null)frame[k]=Math.round((v0+(v1-v0)*ratio)*10)/10;
+      else frame[k]=v0!=null?v0:v1;
+      // Confidence: take lower
+      const c0=f0[k+'_conf']||0,c1=f1[k+'_conf']||0;
+      frame[k+'_conf']=Math.min(c0,c1);
+    });
+    resampled.push(frame);
+  }
+  return resampled;
+}
+
+function exportExcel(){
+  const raw=S.recRaw;if(!raw.length)return;
+  // Collect experiment info at export time
+  const sid=prompt('被试编号 (如 S001):','S001')||'unknown';
+  const cond=prompt('实验条件 (baseline/pre/post/follow):','baseline')||'baseline';
+  const mov=prompt('动作类型 (squat/gait/jump/sprint):','squat')||'squat';
+  S.experiment={subjectId:sid,condition:cond,movement:mov,notes:'',startTime:new Date().toISOString()};
+  const resampled=resampleTo50Hz(raw);
+
+  // Sheet 1: Filtered data at 50Hz
+  const cols=['时间(s)',...ALL_KEYS.map(k=>{const m=ANGLE_MAP.find(a=>a[0]===k);return m?m[1]+'(°)':k}),...ALL_KEYS.map(k=>'置信度_'+k)];
+  const rows=resampled.map(r=>{
+    const row=[r.time];
+    ALL_KEYS.forEach(k=>row.push(r[k]!=null?r[k]:''));
+    ALL_KEYS.forEach(k=>row.push(r[k+'_conf']!=null?r[k+'_conf']:''));
+    return row;
+  });
+  const ws1=XLSX.utils.aoa_to_sheet([cols,...rows]);
+  ws1['!freeze']={xSplit:1,ySplit:1};
+
+  // Sheet 2: Method description
+  const method=[
+    ['MotionAngle Pro v3.2 — 实验数据导出'],[''],
+    ['被试编号',S.experiment.subjectId],
+    ['实验条件',S.experiment.condition],
+    ['动作类型',S.experiment.movement],
+    ['实验开始时间',S.experiment.startTime],
+    ['导出时间',new Date().toISOString()],
+    ['备注',S.experiment.notes],[''],
+    ['=== 方法学参数 ==='],
+    ['姿态估计模型','MediaPipe BlazePose (Google, 2023)'],
+    ['模型复杂度','Full (modelComplexity=2)'],
+    ['关键点数量','33 (全身)'],
+    ['角度计算方法','2D 三点向量夹角 (arccos of dot product)'],
+    ['置信度阈值',C.confThreshold+' (低于此值输出为空值NaN)'],
+    ['滤波方法','Butterworth low-pass filter'],
+    ['滤波阶数',C.filterOrder+'th order (2nd order applied twice)'],
+    ['截止频率',C.filterCutoff+' Hz'],
+    ['输出采样率',C.sampleRate+' Hz (线性插值重采样)'],
+    ['异常检测阈值',C.outlierDeg+'°/帧 (帧间角度变化超过此值标记为异常)'],[''],
+    ['=== 数据说明 ==='],
+    ['时间(s)','从录制开始的秒数，间隔0.02s'],
+    ['角度列','各关节角度（度），空值表示该帧置信度低于阈值'],
+    ['置信度列','对应关节顶点的检测置信度(0-1)，建议分析时排除<0.6的数据'],[''],
+    ['=== 引用建议 ==='],
+    ['','Bazarevsky, V., et al. (2020). BlazePose: On-device Real-time Body Pose Tracking. arXiv:2006.10204'],
+    ['','Lugaresi, C., et al. (2019). MediaPipe: A Framework for Building Perception Pipelines. arXiv:1906.08172'],
+  ];
+  const ws2=XLSX.utils.aoa_to_sheet(method);
+
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws1,'角度数据_50Hz');
+  XLSX.utils.book_append_sheet(wb,ws2,'方法说明');
+
+  const fn=`${S.experiment.subjectId}_${S.experiment.movement}_${S.experiment.condition}_${new Date().toISOString().slice(0,10)}.xlsx`;
+  XLSX.writeFile(wb,fn);
+}
+
+function exportVideo(){
+  if(!S.recChunks.length)return;
+  const blob=new Blob(S.recChunks,{type:'video/webm'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`${S.experiment.subjectId}_${S.experiment.movement}_${Date.now()}.webm`;a.click();
+}
+
+// ============================================================
+//  BINDINGS
+// ============================================================
+function bindUI(){
+
+  document.querySelectorAll('#srcTabs button').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('#srcTabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+    video.style.display='';canvas.style.pointerEvents='none';
+    const src=b.dataset.src;
+    if(src==='camera')startCamera();else if(src==='video')loadVideoSrc();else loadImageSrc();
+  }));
+
+  document.querySelectorAll('.vt button').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('.vt button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+    S.view=b.dataset.v;
+  }));
+
+  document.querySelectorAll('#bottomBar button').forEach(b=>b.addEventListener('click',()=>{
+    const t=b.dataset.t;S.markers[t]=!S.markers[t];b.classList.toggle('on');
+    if(t==='symmetry')document.getElementById('symPanel').classList.toggle('show');
+  }));
+
+  document.getElementById('btnRec').addEventListener('click',toggleRec);
+  document.getElementById('btnExp').addEventListener('click',exportExcel);
+  document.getElementById('btnVid').addEventListener('click',exportVideo);
+
+  document.getElementById('progressBar').addEventListener('click',e=>{
+    if(!video.duration)return;
+    const rect=e.currentTarget.getBoundingClientRect();
+    video.currentTime=(e.clientX-rect.left)/rect.width*video.duration;
+  });
+}
+
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
