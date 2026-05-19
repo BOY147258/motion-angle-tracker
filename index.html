@@ -59,7 +59,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 .ai{display:flex;justify-content:space-between;align-items:center;padding:2px 5px;margin-bottom:1px;border-radius:3px;font-size:9px;border-left:2px solid transparent;transition:background .15s}
 .ai.l{border-left-color:var(--orange)}.ai.r{border-left-color:var(--blue)}.ai.c{border-left-color:var(--accent2)}
 .ai.dis{opacity:.15}
-.ai .n{color:var(--dim);font-size:8px}.ai .v{font-weight:700;font-size:11px;font-variant-numeric:tabular-nums;min-width:40px;text-align:right}
+.ai .n{color:var(--dim);font-size:11px}.ai .v{font-weight:700;font-size:20px;font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
 .ai .v.on{color:var(--accent)}.ai .v.w{color:var(--orange)}.ai .v.off{color:var(--dim)}
 .ai .conf{width:3px;height:10px;border-radius:1px;margin-left:3px}
 .conf-h{background:var(--green)}.conf-m{background:var(--orange)}.conf-l{background:var(--red)}
@@ -209,8 +209,8 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 <script>
 // ===== JOINT DEFINITIONS =====
 const JOINTS={
-  L:[{id:'l_shoulder',name:'肩',a:[7,11,23]},{id:'l_elbow',name:'肘',a:[11,13,15]},{id:'l_wrist',name:'腕',a:[13,15,19]},{id:'l_hip',name:'髋',a:[11,23,25]},{id:'l_knee',name:'膝',a:[23,25,27]},{id:'l_ankle',name:'踝',a:[25,27,31]}],
-  R:[{id:'r_shoulder',name:'肩',a:[8,12,24]},{id:'r_elbow',name:'肘',a:[12,14,16]},{id:'r_wrist',name:'腕',a:[14,16,20]},{id:'r_hip',name:'髋',a:[12,24,26]},{id:'r_knee',name:'膝',a:[24,26,28]},{id:'r_ankle',name:'踝',a:[26,28,32]}],
+  L:[{id:'l_shoulder',name:'肩',a:[13,11,23]},{id:'l_elbow',name:'肘',a:[11,13,15]},{id:'l_wrist',name:'腕',a:[13,15,19]},{id:'l_hip',name:'髋',a:[11,23,25]},{id:'l_knee',name:'膝',a:[23,25,27]},{id:'l_ankle',name:'踝',a:[25,27,31]}],
+  R:[{id:'r_shoulder',name:'肩',a:[14,12,24]},{id:'r_elbow',name:'肘',a:[12,14,16]},{id:'r_wrist',name:'腕',a:[14,16,20]},{id:'r_hip',name:'髋',a:[12,24,26]},{id:'r_knee',name:'膝',a:[24,26,28]},{id:'r_ankle',name:'踝',a:[26,28,32]}],
   C:[{id:'c_trunk',name:'躯干倾斜',a:[11,23,25]},{id:'c_neck',name:'颈部',a:[0,11,12]}]
 };
 const UPPER_IDS=['l_shoulder','l_elbow','l_wrist','r_shoulder','r_elbow','r_wrist'];
@@ -230,33 +230,21 @@ let state={
   latestLandmarks:null,latestConfidence:0
 };
 
-// ===== BUTTERWORTH LOW-PASS FILTER (2nd order, 4Hz cutoff at 30fps) =====
-class ButterworthLP{
-  constructor(){
-    // Pre-computed coefficients for fc=4Hz, fs=30Hz, 2nd order
-    // Using bilinear transform
-    const fc=4,fs=30;
-    const wc=Math.tan(Math.PI*fc/fs);
-    const k1=Math.SQRT2*wc;
-    const k2=wc*wc;
-    const a0=k2/(1+k1+k2);
-    this.b=[a0,2*a0,a0];
-    const k3=2*a0/k2;
-    this.a=[1,k3*(k2-1),1-k3-2*a0];
-    this.reset();
-  }
-  reset(){this.x=[0,0];this.y=[0,0]}
+// ===== SIMPLE EXPONENTIAL MOVING AVERAGE FILTER =====
+// EMA is stable, no coefficient issues, smoothing factor 0.4 (responsive yet smooth)
+class SmoothFilter{
+  constructor(){this.val=null}
+  reset(){this.val=null}
   filter(x){
-    const y=this.b[0]*x+this.b[1]*this.x[0]+this.b[2]*this.x[1]-this.a[1]*this.y[0]-this.a[2]*this.y[1];
-    this.x[1]=this.x[0];this.x[0]=x;
-    this.y[1]=this.y[0];this.y[0]=y;
-    return y;
+    if(this.val===null){this.val=x;return x}
+    this.val+= 0.4*(x-this.val);
+    return Math.round(this.val);
   }
 }
 
 // One filter per joint
 const filters={};
-for(const j of ALL_JOINTS){filters[j.id]=new ButterworthLP()}
+for(const j of ALL_JOINTS){filters[j.id]=new SmoothFilter()}
 
 // ===== FIXED-RATE SAMPLER (30Hz) =====
 const SAMPLE_RATE=30;
@@ -302,9 +290,17 @@ window.onload=async()=>{
 function setLoad(p){document.getElementById('loadFill').style.width=p+'%'}
 
 async function initPose(){
-  pose=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${f}`});
-  pose.setOptions({modelComplexity:1,smoothLandmarks:true,minDetectionConfidence:.6,minTrackingConfidence:.5});
+  const CDN1='https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/';
+  const CDN2='https://unpkg.com/@mediapipe/pose@0.5.1675469404/';
+  let cdn=CDN1;
+  // Test CDN availability
+  try{const r=await fetch(CDN1+'pose_solution_packed_assets.data',{method:'HEAD'});if(!r.ok)cdn=CDN2}catch(e){cdn=CDN2}
+  pose=new Pose({locateFile:f=>cdn+f});
+  pose.setOptions({modelComplexity:1,smoothLandmarks:true,minDetectionConfidence:.4,minTrackingConfidence:.3});
   pose.onResults(onResults);
+  // Warm up: send a blank frame to force model download
+  const tmp=document.createElement('canvas');tmp.width=64;tmp.height=64;
+  try{await pose.send({image:tmp})}catch(e){}
 }
 
 async function startCamera(){
@@ -441,31 +437,34 @@ function drawTrail(lm,w,h){
 
 function drawAnglesOnCanvas(lm,angles,w,h){
   for(const j of ALL_JOINTS){
-    const mid=lm[j.a[1]];if(mid.visibility<.5)continue;
+    const mid=lm[j.a[1]];if(mid.visibility<.3)continue;
     const val=angles[j.id];if(val===undefined)continue;
     const x=mid.x*w,y=mid.y*h;
-    ctx.font='bold 9px monospace';
-    ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(x+5,y-6,34,13);
-    ctx.fillStyle='#00f0ff';ctx.fillText(val+'°',x+7,y+4);
+    ctx.font='bold 26px monospace';
+    const txt=val+'°';
+    const tw=ctx.measureText(txt).width;
+    ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillRect(x+6,y-22,tw+12,34);
+    ctx.fillStyle='#00f0ff';ctx.fillText(txt,x+12,y+6);
   }
 }
 
 // ===== ANGLE MATH =====
 function calcAngle(a,b,c){
-  const ab={x:a.x-b.x,y:a.y-b.y,z:(a.z||0)-(b.z||0)};
-  const cb={x:c.x-b.x,y:c.y-b.y,z:(c.z||0)-(b.z||0)};
-  const dot=ab.x*cb.x+ab.y*cb.y+ab.z*cb.z;
-  const mA=Math.sqrt(ab.x**2+ab.y**2+ab.z**2);
-  const mC=Math.sqrt(cb.x**2+cb.y**2+cb.z**2);
-  if(mA*mC===0)return null;
-  return Math.round(Math.acos(Math.max(-1,Math.min(1,dot/(mA*mC))))*180/Math.PI);
+  // 2D only — z from lite/full model is unreliable for angle measurement
+  const v1x=a.x-b.x,v1y=a.y-b.y;
+  const v2x=c.x-b.x,v2y=c.y-b.y;
+  const dot=v1x*v2x+v1y*v2y;
+  const m1=Math.sqrt(v1x*v1x+v1y*v1y);
+  const m2=Math.sqrt(v2x*v2x+v2y*v2y);
+  if(m1<1e-6||m2<1e-6)return null;
+  return Math.round(Math.acos(Math.max(-1,Math.min(1,dot/(m1*m2))))*180/Math.PI);
 }
 
 function calcAllAngles(lm){
   const out={};
   for(const j of ALL_JOINTS){
     const[a,b,c]=j.a;
-    if(lm[a].visibility>.5&&lm[b].visibility>.5&&lm[c].visibility>.5)out[j.id]=calcAngle(lm[a],lm[b],lm[c]);
+    if(lm[a].visibility>.3&&lm[b].visibility>.3&&lm[c].visibility>.3)out[j.id]=calcAngle(lm[a],lm[b],lm[c]);
   }
   return out;
 }
