@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>MotionLab Pro — 实时追踪</title>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#05080f;--s1:#0a1628;--border:rgba(6,214,160,.12);--a1:#06d6a0;--a2:#7c5bf5;--a3:#00d4ff;--text:#e8f0ff;--dim:#4a6080;--warn:#f59e0b;--err:#ef4444;--font:'SF Mono','JetBrains Mono',monospace}
+body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+
+/* LAYOUT */
+.app{display:flex;height:100vh;flex-direction:row}
+@media(max-width:768px){.app{flex-direction:column}.panel{width:100%!important;min-width:0!important;max-height:35vh;border-left:none!important;border-top:1px solid var(--border)}}
+
+/* VIDEO AREA */
+.viewport{flex:1;position:relative;background:#000;overflow:hidden}
+#vid{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain}
+#cv{position:absolute;top:0;left:0;width:100%;height:100%;z-index:2}
+
+/* HUD OVERLAY */
+.hud-tl{position:absolute;top:12px;left:12px;z-index:5;font-size:10px;color:var(--a1);opacity:.8}
+.hud-tl .h-title{font-size:13px;font-weight:700;letter-spacing:1px;margin-bottom:4px}
+.hud-tr{position:absolute;top:12px;right:12px;z-index:5;text-align:right}
+.hud-fps{font-size:22px;font-weight:800;color:var(--a1)}
+.hud-fps-label{font-size:9px;color:var(--dim)}
+.hud-bl{position:absolute;bottom:12px;left:12px;z-index:5;display:flex;gap:6px}
+.hud-btn{padding:8px 14px;border:1px solid var(--border);border-radius:6px;background:rgba(5,8,15,.7);backdrop-filter:blur(8px);color:var(--text);font:11px var(--font);cursor:pointer;transition:all .2s}
+.hud-btn:hover{border-color:var(--a1);color:var(--a1)}
+.hud-btn.active{background:rgba(6,214,160,.15);border-color:var(--a1);color:var(--a1)}
+.hud-btn.rec{border-color:var(--err);color:var(--err)}
+.hud-btn.rec.on{background:rgba(239,68,68,.2);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+
+/* REC indicator */
+.rec-badge{display:none;position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:5;background:rgba(239,68,68,.9);color:#fff;font-size:11px;padding:4px 12px;border-radius:4px;align-items:center;gap:6px}
+.rec-badge.show{display:flex}
+.rec-dot{width:6px;height:6px;border-radius:50%;background:#fff;animation:pulse .6s infinite}
+
+/* LOADING */
+.loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:3;color:var(--dim)}
+.loading .icon{font-size:48px;margin-bottom:12px;display:block}
+.loading .bar{width:200px;height:3px;background:rgba(255,255,255,.05);border-radius:2px;margin:12px auto;overflow:hidden}
+.loading .bar-fill{height:100%;background:linear-gradient(90deg,var(--a1),var(--a2));width:0%;transition:width .3s;border-radius:2px}
+.loading .txt{font-size:11px}
+
+/* PANEL */
+.panel{width:360px;min-width:360px;background:var(--s1);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.panel-header{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-size:12px;font-weight:700;color:var(--a1)}
+.panel-badge{font-size:9px;color:var(--dim);padding:2px 6px;border:1px solid rgba(255,255,255,.06);border-radius:3px}
+
+/* TABS */
+.tabs{display:flex;padding:8px 16px;gap:4px;border-bottom:1px solid var(--border)}
+.tab{flex:1;padding:6px;text-align:center;font-size:10px;border:1px solid rgba(255,255,255,.04);border-radius:4px;cursor:pointer;color:var(--dim);transition:all .2s}
+.tab.on{color:var(--a2);border-color:var(--a2);background:rgba(124,91,245,.08)}
+
+/* ANGLE GRID */
+.angle-section{flex:1;overflow-y:auto;padding:10px 16px}
+.angle-section::-webkit-scrollbar{width:3px}
+.angle-section::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.section-label{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin-bottom:8px}
+.angle-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:12px}
+.angle-cell{background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.04);border-radius:6px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;transition:all .15s;cursor:pointer}
+.angle-cell:hover{border-color:var(--a1)}
+.angle-cell.highlight{border-color:var(--a1);background:rgba(6,214,160,.04)}
+.angle-cell .name{font-size:10px;color:var(--dim)}
+.angle-cell .val{font-size:16px;font-weight:800;color:var(--a1);font-variant-numeric:tabular-nums}
+.angle-cell .val.warn{color:var(--warn)}
+.angle-cell .val.off{color:#333}
+
+/* SYMMETRY */
+.sym-section{padding:10px 16px;border-top:1px solid var(--border)}
+.sym-row{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.sym-label{font-size:9px;color:var(--dim);width:24px;text-align:right}
+.sym-bar{flex:1;height:4px;background:rgba(255,255,255,.03);border-radius:2px;position:relative;overflow:hidden}
+.sym-fill{height:100%;border-radius:2px;transition:width .15s}
+.sym-fill.ok{background:var(--a1)}.sym-fill.l{background:var(--warn)}.sym-fill.r{background:var(--a3)}
+.sym-center{position:absolute;left:50%;top:0;width:1px;height:100%;background:rgba(255,255,255,.1)}
+
+/* STATS BAR */
+.stats{padding:8px 16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:10px;color:var(--dim)}
+.stats .val{color:var(--text);font-weight:700}
+.stats .rec-time{color:var(--err);font-size:12px;font-weight:800}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="viewport">
+    <video id="vid" playsinline muted></video>
+    <canvas id="cv"></canvas>
+    <div class="hud-tl">
+      <div class="h-title">⟡ MOTIONLAB</div>
+      <div id="hud-status">初始化中...</div>
+    </div>
+    <div class="hud-tr">
+      <div class="hud-fps" id="fps-val">--</div>
+      <div class="hud-fps-label">FPS</div>
+    </div>
+    <div class="rec-badge" id="rec-badge"><span class="rec-dot"></span>REC</div>
+    <div class="hud-bl">
+      <button class="hud-btn" id="btn-cam" onclick="toggleCam()">📷 开启</button>
+      <button class="hud-btn" id="btn-view" onclick="cycleView()">正面</button>
+      <button class="hud-btn rec" id="btn-rec" onclick="toggleRec()">⏺ 录制</button>
+      <button class="hud-btn" id="btn-export" onclick="exportData()">📊</button>
+      <button class="hud-btn" id="btn-video" onclick="exportVideo()">🎬</button>
+    </div>
+    <div class="loading" id="loading">
+      <span class="icon">🎯</span>
+      <div id="load-text">准备就绪</div>
+      <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+      <div class="txt" id="load-sub">点击「开启」启动摄像头</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">关节角度监测</span>
+      <span class="panel-badge">BlazePose 33pt</span>
+    </div>
+    <div class="tabs">
+      <div class="tab on" data-v="front">正面</div>
+      <div class="tab" data-v="side">侧面</div>
+      <div class="tab" data-v="full">综合</div>
+    </div>
+    <div class="angle-section" id="angle-section"></div>
+    <div class="sym-section">
+      <div class="section-label">⚖️ 对称性</div>
+      <div class="sym-row"><span class="sym-label">肩</span><div class="sym-bar"><div class="sym-fill ok" id="sym-sh" style="width:50%"></div><div class="sym-center"></div></div></div>
+      <div class="sym-row"><span class="sym-label">肘</span><div class="sym-bar"><div class="sym-fill ok" id="sym-el" style="width:50%"></div><div class="sym-center"></div></div></div>
+      <div class="sym-row"><span class="sym-label">髋</span><div class="sym-bar"><div class="sym-fill ok" id="sym-hp" style="width:50%"></div><div class="sym-center"></div></div></div>
+      <div class="sym-row"><span class="sym-label">膝</span><div class="sym-bar"><div class="sym-fill ok" id="sym-kn" style="width:50%"></div><div class="sym-center"></div></div></div>
+    </div>
+    <div class="stats">
+      <span>⏱ <span class="rec-time" id="st-time">--:--</span></span>
+      <span>帧 <span class="val" id="st-frames">0</span></span>
+      <span>检测 <span class="val" id="st-conf">--%</span></span>
+      <span>异常 <span class="val" id="st-warn">0</span></span>
+    </div>
+  </div>
+</div>
+
+<script>
+// === CONFIG ===
+const L={lShoulder:11,rShoulder:12,lElbow:13,rElbow:14,lWrist:15,rWrist:16,lHip:23,rHip:24,lKnee:25,rKnee:26,lAnkle:27,rAnkle:28,nose:0};
+const ANGLES=[
+  ['lShoulder','左肩',[13,11,23],'l'],['rShoulder','右肩',[14,12,24],'r'],
+  ['lElbow','左肘',[11,13,15],'l'],['rElbow','右肘',[12,14,16],'r'],
+  ['lWrist','左腕',[13,15,19],'l'],['rWrist','右腕',[14,16,20],'r'],
+  ['lHip','左髋',[11,23,25],'l'],['rHip','右髋',[12,24,26],'r'],
+  ['lKnee','左膝',[23,25,27],'l'],['rKnee','右膝',[24,26,28],'r'],
+  ['lAnkle','左踝',[25,27,31],'l'],['rAnkle','右踝',[26,28,32],'r'],
+  ['neck','颈部',[0,11,12],'c'],['trunk','躯干',[11,23,25],'c'],
+];
+const VIEWS={front:['lShoulder','rShoulder','lElbow','rElbow','lHip','rHip','lKnee','rKnee'],side:['lShoulder','lElbow','lHip','lKnee','lAnkle','neck','trunk'],full:ANGLES.map(a=>a[0])};
+const CONNS=[[11,13],[13,15],[12,14],[14,16],[11,12],[11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],[27,29],[28,30],[27,31],[28,32],[15,17],[15,19],[16,18],[16,20]];
+const OUTLIER_THRESH=25;
+
+// === STATE ===
+let S={cam:false,pose:null,lms:null,view:'front',rec:false,recData:[],recChunks:[],recStart:0,mRec:null,outliers:0,prevAng:{},fps:0,frameCount:0,lastFpsTime:0};
+
+// === INIT ===
+const vid=document.getElementById('vid'),cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+function resize(){const c=cv.parentElement;cv.width=c.clientWidth;cv.height=c.clientHeight}
+window.addEventListener('resize',resize);resize();
+buildAngleGrid();
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');S.view=t.dataset.v;updateGridVisibility()}));
+
+function buildAngleGrid(){
+  const sec=document.getElementById('angle-section');
+  sec.innerHTML='<div class="section-label">📐 实时角度</div><div class="angle-grid" id="ag"></div>';
+  const ag=document.getElementById('ag');
+  ANGLES.forEach(([key,name])=>{
+    const d=document.createElement('div');d.className='angle-cell';d.id='ac-'+key;
+    d.innerHTML=`<span class="name">${name}</span><span class="val off" id="av-${key}">--</span>`;
+    ag.appendChild(d);
+  });
+  updateGridVisibility();
+}
+function updateGridVisibility(){
+  const vis=new Set(VIEWS[S.view]);
+  ANGLES.forEach(([key])=>{const el=document.getElementById('ac-'+key);if(el)el.style.display=vis.has(key)?'flex':'none'});
+}
+
+// === CAMERA ===
+async function toggleCam(){
+  if(S.cam){stopCam();return}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
+    vid.srcObject=stream;await vid.play();S.cam=true;
+    document.getElementById('btn-cam').textContent='📷 关闭';
+    document.getElementById('btn-cam').classList.add('active');
+    document.getElementById('loading').style.display='none';
+    document.getElementById('hud-status').textContent='加载模型...';
+    initPose();
+  }catch(e){document.getElementById('load-text').textContent='摄像头失败: '+e.message}
+}
+function stopCam(){
+  if(vid.srcObject)vid.srcObject.getTracks().forEach(t=>t.stop());
+  vid.srcObject=null;S.cam=false;S.lms=null;
+  document.getElementById('btn-cam').textContent='📷 开启';
+  document.getElementById('btn-cam').classList.remove('active');
+  document.getElementById('hud-status').textContent='已停止';
+  document.getElementById('loading').style.display='';
+  ctx.clearRect(0,0,cv.width,cv.height);
+}
+
+// === POSE ===
+function initPose(){
+  S.pose=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${f}`});
+  S.pose.setOptions({modelComplexity:1,smoothLandmarks:true,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
+  S.pose.onResults(onResults);
+  document.getElementById('hud-status').textContent='模型就绪';
+  loop();
+}
+function loop(){
+  if(!S.cam)return;
+  if(vid.readyState>=2)S.pose.send({image:vid}).then(()=>requestAnimationFrame(loop));
+  else requestAnimationFrame(loop);
+}
+function onResults(r){
+  if(!r.poseLandmarks){S.lms=null;return}
+  S.lms=r.poseLandmarks;
+  S.frameCount++;
+  const now=performance.now();
+  if(now-S.lastFpsTime>500){S.fps=Math.round(S.frameCount/((now-S.lastFpsTime)/1000));S.frameCount=0;S.lastFpsTime=now;document.getElementById('fps-val').textContent=S.fps}
+  document.getElementById('hud-status').textContent='🟢 追踪中';
+  draw();
+}
+
+// === DRAW ===
+function draw(){
+  const w=cv.width,h=cv.height;ctx.clearRect(0,0,w,h);
+  if(!S.lms)return;
+  const lms=S.lms;
+  // Skeleton
+  ctx.strokeStyle='rgba(0,212,255,.25)';ctx.lineWidth=1.5;
+  CONNS.forEach(([a,b])=>{const la=lms[a],lb=lms[b];if(la&&lb&&la.visibility>.5&&lb.visibility>.5){ctx.beginPath();ctx.moveTo(la.x*w,la.y*h);ctx.lineTo(lb.x*w,lb.y*h);ctx.stroke()}});
+  // Joints
+  lms.forEach((p,i)=>{if(p.visibility>.5){ctx.beginPath();ctx.arc(p.x*w,p.y*h,3,0,Math.PI*2);ctx.fillStyle='rgba(0,212,255,.6)';ctx.fill()}});
+  // Angles
+  const ang={};let flags=0;
+  ANGLES.forEach(([key,name,pts])=>{
+    const [a,b,c]=pts;const la=lms[a],lb=lms[b],lc=lms[c];
+    if(la&&lb&&lc&&la.visibility>.4&&lb.visibility>.4&&lc.visibility>.4){
+      const v=calcAngle(la,lb,lc);ang[key]=v;
+      // Outlier
+      if(S.prevAng[key]!=null&&Math.abs(v-S.prevAng[key])>OUTLIER_THRESH){flags++;S.outliers++}
+      // Draw arc
+      drawArc(la,lb,lc,w,h,v);
+      // Update panel
+      const el=document.getElementById('av-'+key);if(el){el.textContent=v+'°';el.className='val'+(flags?'warn':'on')}
+    }else{const el=document.getElementById('av-'+key);if(el){el.textContent='--';el.className='val off'}}
+  });
+  S.prevAng=ang;
+  updateSym(ang);
+  document.getElementById('st-warn').textContent=S.outliers;
+  // Confidence
+  const visCount=lms.filter(p=>p.visibility>.5).length;
+  document.getElementById('st-conf').textContent=Math.round(visCount/33*100)+'%';
+  // Record
+  if(S.rec){S.recData.push({time:(performance.now()-S.recStart)/1000,...ang,flags});document.getElementById('st-frames').textContent=S.recData.length}
+}
+function calcAngle(a,b,c){const ba={x:a.x-b.x,y:a.y-b.y},bc={x:c.x-b.x,y:c.y-b.y};const dot=ba.x*bc.x+ba.y*bc.y;const m=Math.sqrt(ba.x**2+ba.y**2)*Math.sqrt(bc.x**2+bc.y**2);return Math.round(Math.acos(Math.max(-1,Math.min(1,dot/m)))*180/Math.PI)}
+function drawArc(a,b,c,w,h,v){const bx=b.x*w,by=b.y*h;const s=Math.atan2(a.y*h-by,a.x*w-bx),e=Math.atan2(c.y*h-by,c.x*w-bx);ctx.beginPath();ctx.arc(bx,by,20,s,e,v>180);ctx.strokeStyle='rgba(6,214,160,.7)';ctx.lineWidth=2;ctx.stroke();ctx.font='bold 11px monospace';ctx.fillStyle='#06d6a0';const m=(s+e)/2;ctx.fillText(v+'°',bx+Math.cos(m)*32,by+Math.sin(m)*32)}
+function updateSym(ang){
+  [['lShoulder','rShoulder','sym-sh'],['lElbow','rElbow','sym-el'],['lHip','rHip','sym-hp'],['lKnee','rKnee','sym-kn']].forEach(([l,r,id])=>{
+    const el=document.getElementById(id);if(!el)return;
+    if(ang[l]==null||ang[r]==null){el.style.width='50%';el.className='sym-fill ok';return}
+    const d=ang[l]-ang[r],pct=Math.max(5,Math.min(95,50+(d/90)*50));
+    el.style.width=pct+'%';el.className='sym-fill'+(Math.abs(d)<5?' ok':d>0?' l':' r');
+  });
+}
+
+// === VIEW CYCLE ===
+const viewOrder=['front','side','full'];let viewIdx=0;
+function cycleView(){viewIdx=(viewIdx+1)%3;S.view=viewOrder[viewIdx];document.getElementById('btn-view').textContent=['正面','侧面','综合'][viewIdx];document.querySelectorAll('.tab').forEach(t=>{t.classList.toggle('on',t.dataset.v===S.view)});updateGridVisibility()}
+
+// === RECORD ===
+function toggleRec(){S.rec?stopRec():startRec()}
+function startRec(){
+  S.recData=[];S.recChunks=[];S.outliers=0;S.recStart=performance.now();S.rec=true;
+  try{const mt=MediaRecorder.isTypeSupported('video/webm;codecs=vp9')?'video/webm;codecs=vp9':'video/webm';S.mRec=new MediaRecorder(cv.captureStream(30),{mimeType:mt});S.mRec.ondataavailable=e=>{if(e.data.size>0)S.recChunks.push(e.data)};S.mRec.start(100)}catch(e){}
+  document.getElementById('btn-rec').classList.add('on');document.getElementById('btn-rec').textContent='⏹ 停止';
+  document.getElementById('rec-badge').classList.add('show');
+  S.recTimer=setInterval(()=>{const t=(performance.now()-S.recStart)/1000;document.getElementById('st-time').textContent=`${String(Math.floor(t/60)).padStart(2,'0')}:${(t%60).toFixed(1).padStart(4,'0')}`},100);
+}
+function stopRec(){
+  S.rec=false;if(S.mRec&&S.mRec.state!=='inactive')S.mRec.stop();clearInterval(S.recTimer);
+  document.getElementById('btn-rec').classList.remove('on');document.getElementById('btn-rec').textContent='⏺ 录制';
+  document.getElementById('rec-badge').classList.remove('show');
+}
+
+// === EXPORT ===
+function exportData(){
+  if(!S.recData.length)return;
+  const keys=ANGLES.map(a=>a[0]);
+  const header=['时间(s)',...ANGLES.map(a=>a[1]),'异常'];
+  const rows=S.recData.map(r=>[+r.time.toFixed(3),...keys.map(k=>r[k]!=null?r[k]:null),r.flags||0]);
+  const ws=XLSX.utils.aoa_to_sheet([header,...rows]);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'角度数据');
+  XLSX.writeFile(wb,`motionlab_${Date.now()}.xlsx`);
+}
+function exportVideo(){
+  if(!S.recChunks.length)return;
+  const blob=new Blob(S.recChunks,{type:'video/webm'});const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=`motionlab_${Date.now()}.webm`;a.click();URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>

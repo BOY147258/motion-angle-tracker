@@ -2,755 +2,132 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🏋️ MotionAngle 运动关节追踪 v2.3</title>
-
-<!-- MediaPipe Pose (proven CDN approach) -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>MotionLab Pro — 智能运动分析</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --bg:#080c18;--panel:#0f1425;--border:#1a2340;--text:#d6def0;
-  --dim:#5a6a8a;--a1:#06d6a0;--a2:#7c5bf5;--w:#f59e0b;
-  --r:#ef4444;--g:#22c55e;--o:#f97316;--b:#06b6d4;
-  --f:'SF Mono','Cascadia Code','Courier New',monospace;
-}
-body{font-family:var(--f);background:var(--bg);color:var(--text);height:100vh;overflow:hidden;-webkit-user-select:none;user-select:none}
+:root{--bg:#05080f;--s1:#0a1628;--s2:#0d1f3c;--border:rgba(6,214,160,.12);--glow:rgba(6,214,160,.3);--a1:#06d6a0;--a2:#7c5bf5;--a3:#00d4ff;--text:#e8f0ff;--dim:#4a6080;--warn:#f59e0b;--err:#ef4444;--font:'SF Mono','JetBrains Mono','Cascadia Code',monospace}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-webkit-user-select:none;user-select:none}
+body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:radial-gradient(ellipse at 50% 0%,rgba(6,214,160,.03) 0%,transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(124,91,245,.02) 0%,transparent 50%);pointer-events:none;z-index:0}
 
 /* HEADER */
-.h{height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--border);font-size:12px;letter-spacing:.3px}
-.l{font-weight:700;background:linear-gradient(135deg,#06d6a0,#7c5bf5);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.st{display:flex;gap:14px;font-size:11px}
-.sd{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:3px}
-.sd.g{background:var(--g)}.sd.y{background:var(--w)}.sd.r{background:var(--r)}.sd.c{background:var(--a1);animation:bk .8s infinite}
-@keyframes bk{0%,100%{opacity:1}50%{opacity:.2}}
+.header{position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border);backdrop-filter:blur(20px);background:rgba(5,8,15,.8)}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--a1),var(--a2));display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 0 20px rgba(6,214,160,.3)}
+.logo-text{font-size:15px;font-weight:700;letter-spacing:1px;background:linear-gradient(90deg,var(--a1),var(--a3));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo-ver{font-size:9px;color:var(--dim);margin-left:6px;padding:2px 6px;border:1px solid rgba(6,214,160,.2);border-radius:3px}
+.header-status{display:flex;gap:16px;font-size:11px;color:var(--dim)}
+.status-dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle}
+.status-dot.on{background:var(--a1);box-shadow:0 0 6px var(--a1)}
+.status-dot.off{background:#333}
+.status-dot.pulse{background:var(--a1);animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
 
-/* MAIN */
-.mn{display:flex;height:calc(100vh - 38px)}
+/* HERO */
+.hero{position:relative;z-index:1;text-align:center;padding:60px 20px 40px}
+.hero h1{font-size:clamp(28px,6vw,48px);font-weight:800;letter-spacing:-1px;margin-bottom:12px;background:linear-gradient(135deg,#fff 0%,var(--a1) 50%,var(--a3) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{font-size:14px;color:var(--dim);max-width:500px;margin:0 auto 32px;line-height:1.6}
+.hero-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border:1px solid var(--border);border-radius:20px;font-size:10px;color:var(--a1);margin-bottom:20px;background:rgba(6,214,160,.04)}
 
-/* VIDEO */
-.vw{flex:1;position:relative;background:#000;overflow:hidden}
-#cv{position:absolute;top:0;left:0;width:100%;height:100%;z-index:2}
-#vid{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain}
-.plh{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--dim);font-size:14px;text-align:center;z-index:1;line-height:2}
-.plh .i{font-size:40px;display:block;margin-bottom:8px}
-.ld{width:200px;height:3px;background:var(--border);border-radius:2px;margin:10px auto;overflow:hidden}
-.ldf{height:100%;background:linear-gradient(90deg,var(--a1),var(--a2));width:0;border-radius:2px;transition:width .3s}
-.ldt{margin:-4px 0 0;font-size:11px;color:var(--dim)}
+/* CARDS */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;padding:0 20px 40px;max-width:900px;margin:0 auto;position:relative;z-index:1}
+.card{position:relative;background:linear-gradient(145deg,var(--s1),var(--s2));border:1px solid var(--border);border-radius:16px;padding:28px 24px;cursor:pointer;transition:all .3s;overflow:hidden}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--a1),transparent);opacity:0;transition:opacity .3s}
+.card:hover{transform:translateY(-4px);border-color:rgba(6,214,160,.3);box-shadow:0 20px 60px rgba(6,214,160,.08)}
+.card:hover::before{opacity:1}
+.card-icon{font-size:36px;margin-bottom:16px;display:block}
+.card-title{font-size:16px;font-weight:700;margin-bottom:8px;color:#fff}
+.card-desc{font-size:12px;color:var(--dim);line-height:1.6}
+.card-tag{position:absolute;top:16px;right:16px;font-size:9px;padding:3px 8px;border-radius:4px;background:rgba(6,214,160,.1);color:var(--a1);border:1px solid rgba(6,214,160,.2)}
+.card-features{margin-top:14px;display:flex;flex-wrap:wrap;gap:6px}
+.card-features span{font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);color:var(--dim)}
 
-/* Marker bar */
-.mb{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:10;display:flex;gap:4px;
-  background:rgba(8,12,24,.85);padding:6px 12px;border-radius:8px;border:1px solid #1a2340;backdrop-filter:blur(6px)}
-.mb button{font:11px/1 var(--f);padding:4px 9px;border:1px solid #1a2340;border-radius:4px;background:transparent;color:var(--dim);cursor:pointer;transition:all .12s}
-.mb button.on{color:var(--a1);border-color:var(--a1);background:rgba(6,214,160,.08)}
-.mb button:hover{border-color:var(--text)}
+/* SPECS */
+.specs{padding:20px;max-width:900px;margin:0 auto 40px;position:relative;z-index:1}
+.specs-title{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:12px;text-align:center}
+.specs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.spec{text-align:center;padding:14px 8px;border:1px solid rgba(255,255,255,.04);border-radius:8px;background:rgba(255,255,255,.01)}
+.spec-val{font-size:20px;font-weight:800;color:var(--a1);margin-bottom:4px}
+.spec-label{font-size:10px;color:var(--dim)}
 
-/* REC indicator */
-.ri{display:none;position:absolute;top:14px;left:14px;z-index:5;
-  background:rgba(239,68,68,.85);color:#fff;font:11px var(--f);padding:4px 10px;border-radius:4px;align-items:center;gap:6px}
-.ri.sh{display:flex}.rd{width:6px;height:6px;border-radius:50%;background:#fff;animation:bk .5s infinite}
+/* FOOTER */
+.footer{text-align:center;padding:20px;font-size:10px;color:var(--dim);border-top:1px solid rgba(255,255,255,.03)}
 
-/* PANEL */
-.pn{width:400px;min-width:400px;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-.s{padding:8px 16px;border-bottom:1px solid var(--border)}
-
-/* View tabs */
-.vt{display:flex;gap:3px}
-.vt button{flex:1;padding:7px 0;font:11px var(--f);text-align:center;border:1px solid #1a2340;border-radius:4px;background:transparent;color:var(--dim);cursor:pointer;transition:all .12s}
-.vt button.on{color:var(--a2);border-color:var(--a2);background:rgba(124,91,245,.08)}
-
-/* Controls */
-.ct{display:flex;gap:6px;padding:8px 16px}
-.ct button{flex:1;padding:8px 0;font:12px/1 var(--f);border:1px solid #1a2340;border-radius:5px;background:transparent;color:var(--text);cursor:pointer;transition:all .12s;font-weight:600}
-.ct .rc{border-color:var(--r);color:var(--r)}.ct .rc.go{background:var(--r);color:#fff}
-.ct .ex{border-color:var(--g);color:var(--g)}.ct .ex:hover:not(:disabled){background:var(--g);color:#000}
-.ct .vd{border-color:var(--b);color:var(--b)}.ct .vd:hover:not(:disabled){background:var(--b);color:#000}
-.ct button:disabled{opacity:.2;cursor:default;filter:none}
-
-/* DATA */
-.ds{flex:1;overflow-y:auto;padding:8px 16px}
-.ds::-webkit-scrollbar{width:3px}.ds::-webkit-scrollbar-thumb{background:#1a2340;border-radius:2px}
-.dt{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px;display:flex;justify-content:space-between}
-.ag{display:grid;grid-template-columns:1fr 1fr;gap:3px}
-.ac{background:rgba(255,255,255,.015);border:1px solid #1a2340;border-radius:4px;padding:5px 8px;display:flex;justify-content:space-between;align-items:center;font-size:11px;transition:all .1s;min-height:30px}
-.ac .al{color:var(--dim)}.ac .av{font-weight:700;font-variant-numeric:tabular-nums;font-size:14px;min-width:58px;text-align:right;transition:color .08s}
-.ac .av.on{color:var(--a1)}.ac .av.er{color:var(--w)}.ac .av.off{color:var(--dim)}
-.ac.fl{animation:fl .15s}@keyframes fl{0%,100%{border-color:#1a2340}50%{border-color:var(--a1)}}
-.ac.bl{border-left:2px solid var(--o)}.ac.br{border-left:2px solid var(--b)}.ac.bc{border-left:2px solid var(--a2)}
-/* Disabled angle cell */
-.ac.off-angle{opacity:.3;border-color:transparent}.ac.off-angle .al{color:var(--dim)}
-
-/* Summary */
-.sm{padding:6px 16px;border-top:1px solid #1a2340;font-size:10px;color:var(--dim);display:flex;justify-content:space-between}
-.sm .b{color:var(--text);font-weight:600}.sm .w{color:var(--w)}.sm .rt{color:var(--r);font-size:12px;font-weight:700}
-
-/* Warn */
-.wb{padding:5px 16px;border-top:1px solid #1a2340;display:none;font-size:10px;color:var(--w);background:rgba(245,158,11,.04);align-items:center;gap:8px;flex-wrap:wrap}
-.wb.sh{display:flex}.wd{width:5px;height:5px;border-radius:50%;background:var(--w);animation:bk .5s infinite}
-.wbg{background:rgba(239,68,68,.1);color:var(--r);border:1px solid rgba(239,68,68,.15);border-radius:3px;padding:1px 5px;font-size:9px}
-
-/* Symmetry */
-.sy{padding:5px 16px;border-top:1px solid #1a2340}.sy .st{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}
-.sr{display:flex;align-items:center;gap:6px;margin-bottom:1px}.sr .sl{font-size:9px;color:var(--dim);width:20px;text-align:right}
-.stk{flex:1;height:4px;background:#1a2340;border-radius:2px;position:relative;overflow:hidden}
-.sf{height:100%;border-radius:2px;transition:width .12s}.sf.l{background:var(--o)}.sf.r{background:var(--b)}.sf.ok{background:var(--g)}
-.sc{position:absolute;left:50%;top:0;width:1px;height:100%;background:rgba(255,255,255,.1);transform:translateX(-50%)}
-
-/* Version badge */
-.vb{font-size:9px;color:var(--dim);background:rgba(255,255,255,.03);border-radius:3px;padding:2px 6px}
-
-@media(max-width:860px){.pn{width:320px;min-width:320px}}
-@media(max-width:680px){.mn{flex-direction:column}.pn{width:100%;min-width:0;max-height:40vh}}
+@media(max-width:600px){
+  .hero{padding:40px 16px 24px}
+  .cards{padding:0 12px 30px;gap:12px}
+  .header-status{display:none}
+}
 </style>
 </head>
 <body>
 
-<div class="h">
-  <div class="l">⟡ MotionAngle v2.3</div>
-  <div class="st">
-    <span><span class="sd y" id="sCam"></span> 摄像头</span>
-    <span><span class="sd y" id="sMod"></span> 模型</span>
-    <span><span class="sd" id="sRec" style="background:var(--dim)"></span> <span id="sTx">待命</span></span>
-    <span><span class="sd" id="sDet" style="background:var(--dim)"></span> <span id="sDetTx">无人</span></span>
-    <span id="sFps">— fps</span>
-    <span class="vb">2D角度 · BlazePose</span>
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">⟡</div>
+    <span class="logo-text">MotionLab Pro</span>
+    <span class="logo-ver">v3.0</span>
+  </div>
+  <div class="header-status">
+    <span><span class="status-dot on"></span>AI 就绪</span>
+    <span><span class="status-dot on"></span>BlazePose</span>
+    <span><span class="status-dot off"></span>待连接</span>
   </div>
 </div>
 
-<div class="mn">
-  <div class="vw" id="vw">
-    <canvas id="cv"></canvas>
-    <video id="vid" playsinline muted></video>
-    <div class="plh" id="plh">
-      <span class="i">📷</span>
-      <span id="plhTx">加载中...</span>
-      <div class="ld"><div class="ldf" id="ldf"></div></div>
-      <div class="ldt" id="ldt">初始化 MediaPipe</div>
-    </div>
-    <div class="ri" id="ri"><span class="rd"></span> REC</div>
-    <div class="mb" id="mb">
-      <button class="on" data-m="skeleton">🦴 骨架</button>
-      <button class="on" data-m="angles">📐 角度</button>
-      <button data-m="symmetry">⚖️ 对称</button>
-      <button data-m="cog">🎯 重心</button>
+<div class="hero">
+  <div class="hero-badge">⚡ Powered by MediaPipe BlazePose · 33 关键点 · 实时推理</div>
+  <h1>智能运动分析平台</h1>
+  <p>专业级运动生物力学分析工具。AI 自动识别人体骨架，实时计算关节角度、对称性、运动轨迹。无需安装，打开即用。</p>
+</div>
+
+<div class="cards">
+  <div class="card" onclick="location.href='tracker.html'">
+    <span class="card-icon">🎯</span>
+    <span class="card-tag">核心</span>
+    <div class="card-title">实时追踪分析</div>
+    <div class="card-desc">打开摄像头，AI 自动识别人体骨架并实时计算 16 个关节角度。支持录制、导出 Excel 和视频。</div>
+    <div class="card-features">
+      <span>实时骨架</span><span>角度计算</span><span>对称分析</span><span>重心追踪</span><span>异常检测</span><span>数据录制</span>
     </div>
   </div>
 
-  <div class="pn">
-    <div class="s" style="padding:8px 16px">
-      <div class="vt">
-        <button class="vbtn on" data-v="front">正面 Fr</button>
-        <button class="vbtn" data-v="side">侧面 Sd</button>
-        <button class="vbtn" data-v="full">综合 All</button>
-      </div>
+  <div class="card" onclick="location.href='video.html'">
+    <span class="card-icon">🎬</span>
+    <span class="card-tag">进阶</span>
+    <div class="card-title">视频逐帧分析</div>
+    <div class="card-desc">导入视频文件，逐帧回放分析。自动追踪关节轨迹，生成角度-时间曲线图，对比不同动作。</div>
+    <div class="card-features">
+      <span>视频导入</span><span>逐帧控制</span><span>轨迹追踪</span><span>曲线图表</span><span>关键帧标注</span>
     </div>
+  </div>
 
-    <div class="ct">
-      <button class="rc" id="bRec">⏺ 录制</button>
-      <button class="ex" id="bExp" disabled>📊 Excel</button>
-      <button class="vd" id="bVid" disabled>🎬 视频</button>
-    </div>
-
-    <div class="ds" id="ds">
-      <div class="dt"><span>📊 关节角度 · <span style="font-weight:400;font-size:9px;color:var(--w)">点击切换</span></span><span style="font-size:9px;color:var(--dim)">±2-5° vs 实验室</span></div>
-      <div class="ag" id="ag"></div>
-    </div>
-
-    <div class="wb" id="wb">
-      <span class="wd"></span><span id="wMsg"></span><span class="wbg" id="wBg"></span>
-    </div>
-
-    <div class="sy" id="sy">
-      <div class="st">⚖️ 左右对称度</div>
-      <div class="sr"><span class="sl">肩</span><div class="stk"><div class="sf ok" id="sSh" style="width:50%"></div><div class="sc"></div></div></div>
-      <div class="sr"><span class="sl">肘</span><div class="stk"><div class="sf ok" id="sEl" style="width:50%"></div><div class="sc"></div></div></div>
-      <div class="sr"><span class="sl">髋</span><div class="stk"><div class="sf ok" id="sHp" style="width:50%"></div><div class="sc"></div></div></div>
-      <div class="sr"><span class="sl">膝</span><div class="stk"><div class="sf ok" id="sKn" style="width:50%"></div><div class="sc"></div></div></div>
-    </div>
-
-    <div class="sm">
-      <span>⏱ <span class="rt" id="dT">—</span></span>
-      <span>帧 <span class="b" id="dF">0</span></span>
-      <span>检测 <span class="b" id="dC">—</span></span>
-      <span>异常 <span class="w" id="dE">0</span></span>
+  <div class="card" onclick="location.href='compare.html'">
+    <span class="card-icon">⚖️</span>
+    <span class="card-tag">专业</span>
+    <div class="card-title">动作对比</div>
+    <div class="card-desc">双画面并排对比，同步播放两段动作。量化差异，找出技术动作的改进空间。</div>
+    <div class="card-features">
+      <span>双画面</span><span>同步播放</span><span>差异量化</span><span>叠加对比</span>
     </div>
   </div>
 </div>
 
-<script>
-// ============================================================
-//  CONFIG
-// ============================================================
-const C = {
-  minVis: 0.5,
-  outlierDeg: 35,
-  smoothN: 3,
-};
+<div class="specs">
+  <div class="specs-title">技术规格</div>
+  <div class="specs-grid">
+    <div class="spec"><div class="spec-val">33</div><div class="spec-label">骨骼关键点</div></div>
+    <div class="spec"><div class="spec-val">16</div><div class="spec-label">关节角度</div></div>
+    <div class="spec"><div class="spec-val">30+</div><div class="spec-label">FPS 实时</div></div>
+    <div class="spec"><div class="spec-val">±2°</div><div class="spec-label">角度精度</div></div>
+    <div class="spec"><div class="spec-val">0</div><div class="spec-label">安装依赖</div></div>
+    <div class="spec"><div class="spec-val">∞</div><div class="spec-label">免费使用</div></div>
+  </div>
+</div>
 
-// ============================================================
-//  MEDIAPIPE LANDMARK INDICES (33)
-// ============================================================
-const L = {
-  nose:0, lEyeInner:1, lEye:2, lEyeOuter:3,
-  rEyeInner:4, rEye:5, rEyeOuter:6,
-  lEar:7, rEar:8, mouthL:9, mouthR:10,
-  lShoulder:11, rShoulder:12,
-  lElbow:13, rElbow:14,
-  lWrist:15, rWrist:16,
-  lPinky:17, rPinky:18, lIndex:19, rIndex:20, lThumb:21, rThumb:22,
-  lHip:23, rHip:24,
-  lKnee:25, rKnee:26,
-  lAnkle:27, rAnkle:28,
-  lHeel:29, rHeel:30,
-  lFootIndex:31, rFootIndex:32,
-};
+<div class="footer">
+  MotionLab Pro v3.0 · AI-Powered Sports Biomechanics · Open Source
+</div>
 
-// ============================================================
-//  ANGLE DEFINITIONS
-// ============================================================
-const AM = [
-  ['lShoulder','左肩','l',1],['rShoulder','右肩','r',1],
-  ['lElbow','左肘','l',1],['rElbow','右肘','r',1],
-  ['lWrist','左腕','l',1],['rWrist','右腕','r',1],
-  ['lHip','左髋','l',1],['rHip','右髋','r',1],
-  ['lKnee','左膝','l',1],['rKnee','右膝','r',1],
-  ['lAnkle','左踝','l',1],['rAnkle','右踝','r',1],
-  ['trunk','躯干','c',1],['neck','颈部','c',1],['bodyLean','前倾角','c',1],
-];
-const EK = AM.map(m=>m[0]);
-
-const VK = {
-  front:['lShoulder','rShoulder','lElbow','rElbow','lHip','rHip','lKnee','rKnee','lWrist','rWrist'],
-  side: ['trunk','neck','bodyLean','lKnee','rKnee','lAnkle','rAnkle','lHip','rHip'],
-  full: EK,
-};
-
-// ============================================================
-//  STATE
-// ============================================================
-const S = {
-  pose: null, stream: null, vidReady: false, modReady: false,
-  view: 'front',
-  markers: { skeleton: true, angles: true, symmetry: true, cog: false },
-  enabledAngles: {},   // initialized below
-  isRec: false, recData: [], recChunks: [], mRec: null, recStart: 0, recTimer: null,
-  prevAngles: {}, smoothBuf: {},
-  fps: 0, fCnt: 0, fTime: 0,
-  outlierCount: 0, frameIdx: 0,
-  hasPerson: false,
-  loopRunning: false,
-  pendingResults: null,
-};
-
-// ============================================================
-//  GEOMETRY (3D)
-// ============================================================
-function gl(lms, idx) {
-  if (!lms||!lms[idx]) return null;
-  const l = lms[idx];
-  if (l.visibility !== undefined && l.visibility < C.minVis) return null;
-  return l;
-}
-
-// ============================================================
-//  2D ANGLE CALCULATION (x & y only — no unreliable z-axis scaling)
-// ============================================================
-function angle2D(a, b, c) {
-  const v1={x:a.x-b.x,y:a.y-b.y}, v2={x:c.x-b.x,y:c.y-b.y};
-  const d=v1.x*v2.x+v1.y*v2.y;
-  const m1=Math.hypot(v1.x,v1.y), m2=Math.hypot(v2.x,v2.y);
-  if(m1<.001||m2<.001)return null;
-  return Math.acos(Math.max(-1,Math.min(1,d/(m1*m2))))*180/Math.PI;
-}
-function vAngle2D(a,b){
-  const v={x:a.x-b.x,y:a.y-b.y},m=Math.hypot(v.x,v.y);
-  if(m<.001)return null;
-  return Math.acos(Math.max(-1,Math.min(1,v.y/m)))*180/Math.PI;
-}
-function mid2(a,b){
-  if(!a&&!b)return null;if(!a)return b;if(!b)return a;
-  return{x:(a.x+b.x)/2,y:(a.y+b.y)/2};
-}
-
-// ============================================================
-//  COMPUTE ALL 2D ANGLES (ignores z — correct for front-facing cam)
-// ============================================================
-function compute(lms) {
-  const g=idx=>gl(lms,idx);
-  const a={};
-  const ls=g(L.lShoulder),rs=g(L.rShoulder),le=g(L.lElbow),re=g(L.rElbow);
-  const lw=g(L.lWrist),rw=g(L.rWrist),lh=g(L.lHip),rh=g(L.rHip);
-  const lk=g(L.lKnee),rk=g(L.rKnee),la=g(L.lAnkle),ra=g(L.rAnkle);
-  const lf=g(L.lFootIndex),rf=g(L.rFootIndex),no=g(L.nose);
-  const ms=mid2(ls,rs),mh=mid2(lh,rh);
-
-  if(ls&&le&&lw) a.lElbow=angle2D(ls,le,lw);
-  if(rs&&re&&rw) a.rElbow=angle2D(rs,re,rw);
-  if(le&&ls&&lh) a.lShoulder=angle2D(le,ls,lh);
-  if(re&&rs&&rh) a.rShoulder=angle2D(re,rs,rh);
-  if(lw&&le) a.lWrist=vAngle2D(lw,le);
-  if(rw&&re) a.rWrist=vAngle2D(rw,re);
-  if(lh&&lk&&la) a.lKnee=angle2D(lh,lk,la);
-  if(rh&&rk&&ra) a.rKnee=angle2D(rh,rk,ra);
-  if(ls&&lh&&lk) a.lHip=angle2D(ls,lh,lk);
-  if(rs&&rh&&rk) a.rHip=angle2D(rs,rh,rk);
-  if(lk&&lf) a.lAnkle=angle2D(lk,la,lf);
-  if(rk&&rf) a.rAnkle=angle2D(rk,ra,rf);
-  if(ms&&mh){
-    a.trunk=vAngle2D(mh,ms);
-    const tv={x:mh.x-ms.x,y:mh.y-ms.y};
-    const tm=Math.hypot(tv.x,tv.y);
-    if(tm>.001) a.bodyLean=90-Math.acos(Math.max(-1,Math.min(1,-tv.y/tm)))*180/Math.PI;
-  }
-  if(no&&ms) a.neck=vAngle2D(no,ms);
-  return a;
-}
-
-// ============================================================
-//  SMOOTH & FLAG
-// ============================================================
-function smooth(raw, fIdx) {
-  const out={};let fl=[];
-  EK.forEach(k=>{
-    const v=raw[k];
-    if(v==null){out[k]=null;return}
-    if(!S.smoothBuf[k])S.smoothBuf[k]=[];
-    const buf=S.smoothBuf[k];buf.push(v);
-    if(buf.length>C.smoothN)buf.shift();
-    out[k]=buf.reduce((a,b)=>a+b,0)/buf.length;
-    const p=S.prevAngles[k];
-    if(p!=null&&fIdx>2&&Math.abs(v-p)>C.outlierDeg)fl.push({key:k,jump:(v-p).toFixed(1)});
-    S.prevAngles[k]=out[k];
-  });
-  return{smoothed:out,flags:fl};
-}
-
-// ============================================================
-//  UI — GRID
-// ============================================================
-function buildGrid(){
-  const g=document.getElementById('ag');g.innerHTML='';
-  // Group definitions
-  const groups = [
-    { label: '上肢 (肩/肘/腕)', color: '#f97316', keys: ['lShoulder','rShoulder','lElbow','rElbow','lWrist','rWrist'] },
-    { label: '下肢 (髋/膝/踝)', color: '#06b6d4', keys: ['lHip','rHip','lKnee','rKnee','lAnkle','rAnkle'] },
-    { label: '核心 (躯干/颈)', color: '#8b5cf5', keys: ['trunk','neck','bodyLean'] },
-  ];
-  groups.forEach(grp => {
-    // Section header
-    const hdr = document.createElement('div');
-    hdr.style.cssText = `grid-column:1/-1;font-size:9px;color:${grp.color};text-transform:uppercase;letter-spacing:1px;padding:8px 0 3px;border-bottom:1px solid rgba(255,255,255,.05);margin-bottom:3px`;
-    hdr.textContent = grp.label;
-    g.appendChild(hdr);
-    // Angle cells
-    grp.keys.forEach(k => {
-      const m = AM.find(x => x[0] === k);
-      if (!m) return;
-      const [key,label,cls] = m;
-      const d = document.createElement('div');
-      d.className = `ac b${cls==='l'?'l':cls==='r'?'r':'c'}`;
-      d.id = `ac-${k}`;
-      d.innerHTML = `<span class="al">${label}</span><span class="av off" id="av-${k}">--°</span>`;
-      d.style.cursor = 'pointer';
-      d.title = '点击切换显示/隐藏';
-      d.addEventListener('click', () => {
-        S.enabledAngles[k] = !S.enabledAngles[k];
-        d.classList.toggle('off-angle');
-      });
-      g.appendChild(d);
-    });
-  });
-}
-
-function updAng(ang,fl,view){
-  const sk=new Set(VK[view]||EK),fk=new Set(fl.map(f=>f.key));
-  AM.forEach(([k,,,p])=>{
-    const ce=document.getElementById(`ac-${k}`),ve=document.getElementById(`av-${k}`);
-    if(!ce||!ve)return;
-    // Always show cells (but dim if not in current view)
-    ce.style.display='flex';
-    ce.style.opacity = sk.has(k) ? '1' : '0.25';
-    // Apply enabled/disabled state
-    if(!S.enabledAngles[k]) { ce.classList.add('off-angle'); }
-    else { ce.classList.remove('off-angle'); }
-    const v=ang[k];
-    if(v!=null && S.enabledAngles[k]){
-      const t=v.toFixed(p)+'°';
-      if(ve.textContent!==t){ve.textContent=t;ce.classList.remove('fl');void ce.offsetWidth;ce.classList.add('fl')}
-      ve.className=fk.has(k)?'av er':'av on';
-    }else{ve.textContent='--°';ve.className='av off'}
-  });
-}
-
-// ============================================================
-//  CAMERA
-// ============================================================
-async function startCam() {
-  try {
-    setPlh('正在请求摄像头...',10);
-    S.stream=await navigator.mediaDevices.getUserMedia({
-      video:{width:{ideal:1280},height:{ideal:720},facingMode:'user',frameRate:{ideal:60}},
-      audio:false
-    });
-    const v=document.getElementById('vid');v.srcObject=S.stream;await v.play();
-    S.vidReady=true;
-    document.getElementById('sCam').className='sd g';
-    return true;
-  } catch(e) {
-    document.getElementById('sCam').className='sd r';
-    setPlh(`⚠️ 摄像头失败: ${e.message}`,100);
-    return false;
-  }
-}
-
-// ============================================================
-//  MEDIAPIPE POSE (blazepose)
-// ============================================================
-async function loadMP() {
-  if (typeof Pose === 'undefined') {
-    setPlh('错误: MediaPipe 库未加载，请检查网络', 100);
-    document.getElementById('sMod').className='sd r';
-    return false;
-  }
-  try {
-    setPlh('加载 BlazePose 模型...',40);
-    S.pose = new Pose({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${file}`
-    });
-
-    S.pose.setOptions({
-      modelComplexity: 1,    // 0=lite, 1=full, 2=heavy
-      smoothLandmarks: true,
-      enableSegmentation: false,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
-
-    setPlh('模型就绪 ✓',90);
-
-    S.pose.onResults((results) => {
-      S.pendingResults = results;
-    });
-
-    S.modReady = true;
-    document.getElementById('sMod').className='sd g';
-    setPlh('就绪 ✓',100);
-    setTimeout(()=>{const p=document.getElementById('plh');if(p)p.style.display='none'},400);
-    return true;
-  } catch(e) {
-    document.getElementById('sMod').className='sd r';
-    setPlh(`⚠️ 模型失败: ${e.message}`,100);
-    console.error('MP error:',e);
-    return false;
-  }
-}
-
-function setPlh(txt,pct){
-  document.getElementById('plhTx').textContent=txt;
-  document.getElementById('ldf').style.width=pct+'%';
-  document.getElementById('ldt').textContent=txt;
-}
-
-// ============================================================
-//  MAIN LOOP
-// ============================================================
-let loopId=null;
-
-async function loop(ts){
-  if(!S.vidReady||!S.modReady||!S.pose){loopId=requestAnimationFrame(loop);return}
-  const v=document.getElementById('vid'),cv=document.getElementById('cv');
-  const ctx=cv.getContext('2d');
-  S.frameIdx++;
-
-  // Ensure canvas matches video dimensions
-  const vw=v.videoWidth||1280, vh=v.videoHeight||720;
-  if(cv.width!==vw||cv.height!==vh){cv.width=vw;cv.height=vh}
-  const w=cv.width, h=cv.height;
-
-  // 1) Draw mirrored video FIRST — user ALWAYS sees the camera feed
-  ctx.save();ctx.scale(-1,1);ctx.drawImage(v,-w,0,w,h);ctx.restore();
-
-  // 2) Send frame to MediaPipe (async, doesn't block next frame)
-  try {await S.pose.send({image:v})}catch(e){}
-
-  const ang={};let fl=[];
-  const results = S.pendingResults;
-  S.pendingResults = null;
-
-  if(results && results.poseLandmarks && results.poseLandmarks.length>0){
-    const lms=results.poseLandmarks;
-    const wlms=results.poseWorldLandmarks;
-
-    if(!S.hasPerson){
-      S.hasPerson=true;
-      document.getElementById('sDet').className='sd g';
-      document.getElementById('sDetTx').textContent='有人';
-    }
-
-    S.fCnt++;
-    if(ts-S.fTime>=1000){S.fps=S.fCnt;S.fCnt=0;S.fTime=ts;
-      document.getElementById('sFps').textContent=`${S.fps} fps`}
-
-    // Compute 2D angles from landmarks (x&y only — no z-axis issues)
-    const raw=compute(lms);
-    const r=smooth(raw,S.frameIdx);
-    Object.assign(ang,r.smoothed);fl=r.flags;
-    if(fl.length>0)S.outlierCount+=fl.length;
-
-    // 3) Render overlay
-    render(ctx,lms,ang,fl,w,h);
-
-    // 4) Record
-    if(S.isRec){
-      const elapsed=(performance.now()-S.recStart)/1000;
-      const row={time:elapsed,frame:S.frameIdx,flags:fl.length};
-      EK.forEach(k=>{row[k]=(S.enabledAngles[k]!==false && ang[k]!=null) ? +ang[k].toFixed(2) : null});
-      S.recData.push(row);
-      updRec(elapsed);
-    }
-
-    updAng(ang,fl,S.view);
-    document.getElementById('dC').textContent='✓';
-  } else {
-    if(S.hasPerson){
-      S.hasPerson=false;
-      document.getElementById('sDet').className='sd';
-      document.getElementById('sDet').style.background='var(--dim)';
-      document.getElementById('sDetTx').textContent='无人';
-    }
-    AM.forEach(([k])=>{const ve=document.getElementById(`av-${k}`);if(ve){ve.textContent='--°';ve.className='av off'}});
-  }
-
-  // FPS always
-  S.fCnt++;
-  if(ts-S.fTime>=1000){S.fps=S.fCnt;S.fCnt=0;S.fTime=ts;
-    document.getElementById('sFps').textContent=`${S.fps} fps`}
-
-  upWarn(fl);upSym(ang);
-
-  // Always draw camera status overlay
-  drawStatus(ctx, w, h, S.hasPerson);
-
-  loopId=requestAnimationFrame(loop);
-}
-
-// ============================================================
-//  CANVAS STATUS OVERLAY — always shows camera is alive
-// ============================================================
-function drawStatus(ctx, w, h, hasPerson) {
-  // Camera feed indicator (bottom-left corner)
-  ctx.save();
-  ctx.font = '10px "Courier New", monospace';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'bottom';
-
-  const txt = hasPerson ? '● 摄像头 OK | 人体检测 ✓' : '● 摄像头 OK | 等待人体...';
-  const m = ctx.measureText(txt);
-  const pd = 6;
-  const bx = 10, by = h - 36;
-
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(bx, by - 2, m.width + pd * 2, 18);
-
-  ctx.fillStyle = hasPerson ? '#22c55e' : '#f59e0b';
-  ctx.fillText(txt, bx + pd, by + 14);
-  ctx.restore();
-}
-
-// ============================================================
-//  RENDER
-// ============================================================
-function render(ctx,lms,ang,fl,w,h){
-  const fk=new Set(fl.map(f=>f.key));
-  if(S.markers.skeleton) drawSkel(ctx,lms,w,h);
-  if(S.markers.angles) drawLabs(ctx,lms,ang,fk,w,h);
-  if(S.markers.symmetry) drawSymOvl(ctx,ang,w,h);
-  if(S.markers.cog) drawCOG(ctx,lms,w,h);
-  drawVL(ctx,S.view,w);
-}
-
-function gl2(lms,idx,w,h){
-  if(!lms||!lms[idx])return null;
-  const l=lms[idx];
-  if(l.visibility!==undefined&&l.visibility<C.minVis)return null;
-  // Mirror x: raw_x → canvas_width - raw_x (mirrors the coordinate to match mirrored video display)
-  return {x:w-(l.x*w), y:l.y*h};
-}
-
-function drawSkel(ctx,lms,w,h){
-  const g=idx=>gl2(lms,idx,w,h);
-  const c=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[27,29],[29,31],[24,26],[26,28],[28,30],[30,32],[0,11],[0,12],[9,10],[0,9],[0,10]];
-  ctx.strokeStyle='#22c55e';ctx.lineWidth=Math.max(1.5,w/500);ctx.lineCap='round';
-  c.forEach(([a,b])=>{const p1=g(a),p2=g(b);if(p1&&p2){ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke()}});
-  lms.forEach(l=>{if(l.visibility>=C.minVis){const r=Math.max(2,w/250);ctx.beginPath();ctx.arc(w-(l.x*w),l.y*h,r,0,Math.PI*2);ctx.fillStyle='#ffd700';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.stroke()}});
-}
-
-function drawLabs(ctx,lms,ang,fk,w,h){
-  const g=idx=>gl2(lms,idx,w,h);
-  const col=s=>s==='l'?'#f97316':s==='r'?'#06b6d4':'#8b5cf6';
-  const labs=[];
-  const add=(idx,key,side,oy=22)=>{
-    if(!S.enabledAngles[key]) return; // skip if disabled
-    const p=g(idx);
-    if(p&&ang[key]!=null)labs.push({p,val:ang[key],col:col(side),oy,er:fk.has(key)});
-  };
-  if(S.view==='front'||S.view==='full'){
-    add(L.lElbow,'lElbow','l');add(L.rElbow,'rElbow','r');
-    add(L.lShoulder,'lShoulder','l',-22);add(L.rShoulder,'rShoulder','r',-22);
-    add(L.lKnee,'lKnee','l');add(L.rKnee,'rKnee','r');
-    add(L.lHip,'lHip','l',-22);add(L.rHip,'rHip','r',-22);
-    add(L.lWrist,'lWrist','l',18);add(L.rWrist,'rWrist','r',18);
-  }
-  if(S.view==='side'||S.view==='full'){
-    const ms=mid2(gl2(lms,L.lShoulder,w,h),gl2(lms,L.rShoulder,w,h)),mh=mid2(gl2(lms,L.lHip,w,h),gl2(lms,L.rHip,w,h));
-    if(S.enabledAngles['neck']&&ms&&ang.neck!=null)labs.push({p:{x:ms.x,y:ms.y-30},val:ang.neck,col:col('c'),oy:-25,er:fk.has('neck')});
-    if(S.enabledAngles['trunk']&&mh&&ang.trunk!=null)labs.push({p:{x:mh.x-30,y:(ms?.y||mh.y)+10},val:ang.trunk,col:col('c'),oy:-35,er:fk.has('trunk')});
-  }
-  if(S.enabledAngles['lAnkle']) add(L.lAnkle,'lAnkle','l',18);
-  if(S.enabledAngles['rAnkle']) add(L.rAnkle,'rAnkle','r',18);
-  const fs=Math.max(10,w/100);
-  ctx.font=`bold ${fs}px "Courier New",monospace`;
-  ctx.textAlign='center';ctx.textBaseline='middle';
-  labs.forEach(({p,val,col,oy,er})=>{
-    const t=`${val.toFixed(1)}°`;const m=ctx.measureText(t);const pd=5,bw=m.width+pd*2,bh=20;const x=p.x,y=p.y+oy;
-    ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(x-bw/2,y-bh/2,bw,bh);
-    ctx.strokeStyle=er?'#f59e0b':col;ctx.lineWidth=er?2:1.5;ctx.strokeRect(x-bw/2,y-bh/2,bw,bh);
-    if(er){ctx.fillStyle='rgba(245,158,11,0.15)';ctx.fillRect(x-bw/2,y-bh/2,bw,bh)}
-    ctx.fillStyle=er?'#f59e0b':col;ctx.fillText(t,x,y);
-  });
-}
-
-function drawSymOvl(ctx,ang,w,h){
-  const ps=[['lShoulder','rShoulder'],['lElbow','rElbow'],['lHip','rHip'],['lKnee','rKnee']];
-  const xs=16,ys=h-110;ctx.font='9px "Courier New",monospace';
-  ps.forEach(([lk,rk],i)=>{const lv=ang[lk],rv=ang[rk],y=ys+i*12;
-    ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(xs,y-2,110,12);ctx.textAlign='left';ctx.textBaseline='bottom';
-    ctx.fillStyle='#5a6a8a';ctx.fillText(lk.replace('l','').substring(1),xs+2,y+10);
-    if(lv!=null&&rv!=null){const d=lv-rv;ctx.fillStyle=d>5?'#f97316':d<-5?'#06b6d4':'#22c55e';
-      ctx.fillText(`${d>0?'▶':d<0?'◀':'◆'} ${Math.abs(d).toFixed(1)}°`,xs+28,y+10)
-    }else{ctx.fillStyle='#5a6a8a';ctx.fillText('--',xs+28,y+10)}
-  });
-}
-
-function drawCOG(ctx,lms,w,h){
-  const ls=gl2(lms,L.lShoulder,w,h),rs=gl2(lms,L.rShoulder,w,h),lh=gl2(lms,L.lHip,w,h),rh=gl2(lms,L.rHip,w,h);
-  if(!ls||!rs||!lh||!rh)return;
-  const ms=mid2(ls,rs),mh=mid2(lh,rh);if(!ms||!mh)return;
-  const cx=(ms.x+mh.x)/2,cy=(ms.y+mh.y)/2;
-  const g=ctx.createRadialGradient(cx,cy,0,cx,cy,18);
-  g.addColorStop(0,'rgba(255,107,107,0.7)');g.addColorStop(1,'rgba(255,107,107,0)');
-  ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,18,0,Math.PI*2);ctx.fill();
-  ctx.beginPath();ctx.arc(cx,cy,4,0,Math.PI*2);ctx.fillStyle='#ff6b6b';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();
-  ctx.setLineDash([3,3]);ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx,h);ctx.stroke();ctx.setLineDash([]);
-}
-
-function drawVL(ctx,view,w){
-  const n={front:'FRONT',side:'SIDE',full:'FULL'},cl={front:'#f97316',side:'#06b6d4',full:'#8b5cf6'};
-  const t=n[view]||'VIEW',c=cl[view]||'#8b5cf6';
-  ctx.font=`bold ${Math.max(11,w/90)}px "Courier New",monospace`;ctx.textAlign='left';ctx.textBaseline='top';
-  const m=ctx.measureText(t);const pd=7,x=14,y=14;
-  ctx.fillStyle='rgba(0,0,0,0.55)';ctx.fillRect(x,y,m.width+pd*2,24);
-  ctx.strokeStyle=c;ctx.lineWidth=1;ctx.strokeRect(x,y,m.width+pd*2,24);
-  ctx.fillStyle=c;ctx.fillText(t,x+pd,y+6);
-}
-
-// ============================================================
-//  WARN / SYMMETRY / REC / EXPORT / VIDEO
-// ============================================================
-function upWarn(fl){
-  const b=document.getElementById('wb'),m=document.getElementById('wMsg'),bg=document.getElementById('wBg');
-  if(fl.length>0){b.classList.add('sh');m.textContent=`${fl.length}处: ${fl.map(f=>f.key).join(', ')}`;bg.textContent=`累计${S.outlierCount}`}
-  else b.classList.remove('sh');
-}
-function upSym(ang){
-  [['lShoulder','rShoulder','sSh'],['lElbow','rElbow','sEl'],['lHip','rHip','sHp'],['lKnee','rKnee','sKn']].forEach(([lk,rk,id])=>{
-    const b=document.getElementById(id);if(!b)return;
-    const lv=ang[lk],rv=ang[rk];
-    if(lv==null||rv==null){b.style.width='50%';b.className='sf ok';return}
-    const d=lv-rv,pct=Math.max(5,Math.min(95,50+(d/90)*50));
-    b.style.width=pct+'%';b.className='sf'+(Math.abs(d)<5?' ok':d>0?' l':' r');
-  });
-}
-function toggleRec(){S.isRec?stopRec():startRec()}
-function startRec(){
-  S.recData=[];S.recChunks=[];S.outlierCount=0;S.recStart=performance.now();S.isRec=true;
-  const cv=document.getElementById('cv');
-  try{
-    const mt=MediaRecorder.isTypeSupported('video/webm;codecs=vp9')?'video/webm;codecs=vp9':'video/webm';
-    S.mRec=new MediaRecorder(cv.captureStream(30),{mimeType:mt});
-    S.mRec.ondataavailable=e=>{if(e.data.size>0)S.recChunks.push(e.data)};S.mRec.start(100);
-  }catch(e){console.warn('MR:',e.message)}
-  document.getElementById('bRec').textContent='⏹ 停止';document.getElementById('bRec').classList.add('go');
-  document.getElementById('sRec').className='sd c';document.getElementById('sTx').textContent='录制中';
-  document.getElementById('ri').classList.add('sh');
-  document.getElementById('bExp').disabled=true;document.getElementById('bVid').disabled=true;
-  S.recTimer=setInterval(()=>{if(!S.isRec)return;updRec((performance.now()-S.recStart)/1000)},50);
-}
-function updRec(el){
-  document.getElementById('dT').textContent=`${String(Math.floor(el/60)).padStart(2,'0')}:${(el%60).toFixed(2).padStart(5,'0')}`;
-  document.getElementById('dF').textContent=S.recData.length;document.getElementById('dE').textContent=S.outlierCount;
-}
-function stopRec(){
-  S.isRec=false;if(S.mRec&&S.mRec.state!=='inactive')S.mRec.stop();clearInterval(S.recTimer);
-  document.getElementById('bRec').textContent='⏺ 录制';document.getElementById('bRec').classList.remove('go');
-  document.getElementById('sRec').className='sd g';document.getElementById('sTx').textContent=`${S.recData.length}帧`;
-  document.getElementById('ri').classList.remove('sh');
-  if(S.recData.length>0)document.getElementById('bExp').disabled=false;
-  if(S.recChunks.length>0)document.getElementById('bVid').disabled=false;
-}
-function exportExcel(){
-  const d=S.recData;if(!d||d.length===0){alert('暂无录制数据');return}
-  const cl=['时间(s)',...EK.map(k=>{const m=AM.find(x=>x[0]===k);return m?`${m[1]}(${k})`:k}),'异常标记'];
-  const rows=d.map(r=>{const row=[+r.time.toFixed(3)];EK.forEach(k=>row.push(r[k]!=null?r[k]:null));row.push(r.flags||0);return row});
-  const ws=XLSX.utils.aoa_to_sheet([cl,...rows]);
-  ws['!cols']=[{wch:10},...EK.map(()=>({wch:13})),{wch:10}];ws['!freeze']={xSplit:1,ySplit:1};
-  for(let r=1;r<=rows.length;r++)for(let c=0;c<=EK.length;c++){const a=XLSX.utils.encode_cell({r,c});if(ws[a]&&typeof ws[a].v==='number')ws[a].z='0.00'}
-  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'关节角度(3D)');
-  const meta=[['MotionAngle v2.3 — 2D关节角度导出数据'],[''],['引擎','MediaPipe BlazePose (2D xy角度)'],['关键点数','33'],
-    ['录制时间',new Date().toLocaleString()],['总帧数',d.length],['总时长(s)',d.length>0?d[d.length-1].time.toFixed(3):0],
-    ['异常阈值',`${C.outlierDeg}°/帧`],['异常总数',S.outlierCount],[''],['字段说明'],['时间(s)','从录制开始的秒数'],
-    ...EK.map(k=>{const m=AM.find(x=>x[0]===k);return[m?`${m[1]}(${k})`:k,'2D关节角度(度)']}),['异常标记','该帧检测到的异常跳变次数']];
-  const ws2=XLSX.utils.aoa_to_sheet(meta);XLSX.utils.book_append_sheet(wb,ws2,'说明');
-  const ts=new Date();const fn=`motion_angle3d_${ts.getFullYear()}${String(ts.getMonth()+1).padStart(2,'0')}${String(ts.getDate()).padStart(2,'0')}_${String(ts.getHours()).padStart(2,'0')}${String(ts.getMinutes()).padStart(2,'0')}${String(ts.getSeconds()).padStart(2,'0')}.xlsx`;
-  XLSX.writeFile(wb,fn);
-}
-function dlVid(){
-  if(S.recChunks.length===0){alert('暂无录制视频');return}
-  const blob=new Blob(S.recChunks,{type:'video/webm'});const url=URL.createObjectURL(blob);
-  const ts=new Date();const fn=`motion_video3d_${ts.getFullYear()}${String(ts.getMonth()+1).padStart(2,'0')}${String(ts.getDate()).padStart(2,'0')}_${String(ts.getHours()).padStart(2,'0')}${String(ts.getMinutes()).padStart(2,'0')}${String(ts.getSeconds()).padStart(2,'0')}.webm`;
-  const a=document.createElement('a');a.href=url;a.download=fn;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
-}
-
-// ============================================================
-//  UI BINDING
-// ============================================================
-function bindUI(){
-  buildGrid();
-  document.querySelectorAll('.vbtn').forEach(t=>{t.addEventListener('click',()=>{
-    document.querySelectorAll('.vbtn').forEach(x=>x.classList.remove('on'));t.classList.add('on');
-    S.view=t.dataset.v;
-    const sk=new Set(VK[S.view]||EK);
-    AM.forEach(([k])=>{const c=document.getElementById(`ac-${k}`);if(c)c.style.display=sk.has(k)?'flex':'none'});
-  })});
-  document.querySelectorAll('.mb button').forEach(b=>{b.addEventListener('click',()=>{const m=b.dataset.m;S.markers[m]=!S.markers[m];b.classList.toggle('on')})});
-  document.getElementById('bRec').addEventListener('click',toggleRec);
-  document.getElementById('bExp').addEventListener('click',exportExcel);
-  document.getElementById('bVid').addEventListener('click',dlVid);
-}
-
-// ============================================================
-//  INIT
-// ============================================================
-async function init(){
-  // Initialize all angle toggles to ON
-  EK.forEach(k => S.enabledAngles[k] = true);
-  bindUI();
-  const ok=await startCam();if(!ok)return;
-  loadMP().then(o=>{if(o)loopId=requestAnimationFrame(loop)});
-}
-document.addEventListener('DOMContentLoaded',init);
-</script>
 </body>
 </html>
