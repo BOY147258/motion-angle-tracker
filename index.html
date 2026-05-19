@@ -43,6 +43,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 /* ===== FULLSCREEN VIDEO ===== */
 #videoLayer{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
 #video{width:100%;height:100%;object-fit:cover;background:#000}
+#video.mirror{transform:scaleX(-1)}
 #canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none}
 #videoFile{display:none}
 
@@ -212,7 +213,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 // ============================================================
 //  CONSTANTS & STATE
 // ============================================================
-const C={outlierDeg:25,sampleRate:50,filterCutoff:6,filterOrder:4,confThreshold:0.6,traceMax:80};
+const C={outlierDeg:25,sampleRate:50,filterCutoff:4,filterOrder:4,confThreshold:0.65,traceMax:80,jumpLimit:40};
 
 const ANGLE_MAP=[
   ['lShoulder','左肩',[13,11,23],'l'],['rShoulder','右肩',[14,12,24],'r'],
@@ -227,7 +228,7 @@ const VIEW_KEYS={front:null,side:null,full:null};
 const ALL_KEYS=ANGLE_MAP.map(a=>a[0]);
 
 let S={
-  view:'front',cameraOn:false,modelReady:false,
+  view:'front',cameraOn:false,modelReady:false,isMirrored:false,
   isRec:false,recRaw:[],recChunks:[],recStart:0,mRec:null,recTimer:null,
   outlierCount:0,frameCount:0,prevAngles:{},
   enabled:{},markers:{skeleton:true,angles:true,symmetry:false,cog:false,trace:false},
@@ -296,9 +297,10 @@ function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeigh
 // ============================================================
 async function startCamera(){
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}}});
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1920},height:{ideal:1080}}});
     video.srcObject=stream;await video.play();
-    S.cameraOn=true;
+    S.cameraOn=true;S.isMirrored=true;
+    video.classList.add('mirror');
     document.getElementById('dotCam').className='dot dot-on';
     document.getElementById('placeholder').style.display='none';
     document.getElementById('progressBar').classList.remove('show');
@@ -311,7 +313,8 @@ async function startCamera(){
 
 function stopCamera(){
   if(video.srcObject){video.srcObject.getTracks().forEach(t=>t.stop());video.srcObject=null;}
-  S.cameraOn=false;S.landmarks=null;
+  S.cameraOn=false;S.isMirrored=false;S.landmarks=null;
+  video.classList.remove('mirror');
   document.getElementById('dotCam').className='dot dot-off';
 }
 
@@ -367,14 +370,27 @@ function detectLoop(){
 
 function onResults(results){
   if(!results.poseLandmarks){S.landmarks=null;document.getElementById('dotDet').className='dot dot-off';document.getElementById('detTx').textContent='无人';return;}
-  S.landmarks=results.poseLandmarks;S.frameCount++;
+  // Mirror X coordinates for front camera so left/right matches user's body
+  if(S.isMirrored){
+    S.landmarks=results.poseLandmarks.map(p=>({x:1-p.x,y:p.y,z:p.z?-p.z:0,visibility:p.visibility}));
+  }else{
+    S.landmarks=results.poseLandmarks;
+  }
+  S.frameCount++;
   document.getElementById('dotDet').className='dot dot-on';document.getElementById('detTx').textContent='✓';
   updateFPS();
 
   const rawAngles=calcAllAngles();
-  // Apply Butterworth filter
+  // Apply Butterworth filter + jump suppression
   const angles={};
-  ALL_KEYS.forEach(k=>{angles[k]=S.enabled[k]?applyFilter(k,rawAngles[k]):null;});
+  ALL_KEYS.forEach(k=>{
+    let v=S.enabled[k]?applyFilter(k,rawAngles[k]):null;
+    // Suppress sudden jumps when limbs overlap (low confidence causes spikes)
+    if(v!=null&&S.prevAngles[k]!=null&&Math.abs(v-S.prevAngles[k])>C.jumpLimit){
+      v=S.prevAngles[k]*0.7+v*0.3;
+    }
+    angles[k]=v;
+  });
   const flags=detectOutliers(angles);
 
   draw(angles,flags);
