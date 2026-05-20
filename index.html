@@ -267,13 +267,18 @@ let state={
 };
 
 // ===== SIMPLE EXPONENTIAL MOVING AVERAGE FILTER =====
-// EMA is stable, no coefficient issues, smoothing factor 0.4 (responsive yet smooth)
+// EMA with lower alpha = smoother, less jitter
 class SmoothFilter{
-  constructor(){this.val=null}
-  reset(){this.val=null}
+  constructor(){this.val=null;this.prevVal=null}
+  reset(){this.val=null;this.prevVal=null}
   filter(x){
-    if(this.val===null){this.val=x;return x}
-    this.val+= 0.4*(x-this.val);
+    // Outlier rejection: if single-frame jump > 25°, use previous value
+    if(this.val!==null&&Math.abs(x-this.val)>25&&this.prevVal!==null){
+      x=this.val+(this.val-this.prevVal);
+    }
+    if(this.val===null){this.val=x;this.prevVal=x;return Math.round(x)}
+    this.prevVal=this.val;
+    this.val+= 0.25*(x-this.val);
     return Math.round(this.val);
   }
 }
@@ -337,7 +342,7 @@ async function initPose(){
   try{const r=await fetch(CDN1+'pose_solution_packed_assets.data',{method:'HEAD'});if(!r.ok)cdn=CDN2}catch(e){cdn=CDN2}
   setLoad(30);
   pose=new Pose({locateFile:f=>cdn+f});
-  pose.setOptions({modelComplexity:1,smoothLandmarks:true,minDetectionConfidence:.65,minTrackingConfidence:.6});
+  pose.setOptions({modelComplexity:1,smoothLandmarks:true,minDetectionConfidence:.55,minTrackingConfidence:.55});
   pose.onResults(onResults);
   setLoad(50);
   // Warm up with a real-sized frame to fully initialize model
@@ -512,7 +517,7 @@ function drawTrail(lm,w,h){
 
 function drawAnglesOnCanvas(lm,angles,w,h){
   for(const j of ALL_JOINTS){
-    const mid=lm[j.a[1]];if(mid.visibility<.3)continue;
+    const mid=lm[j.a[1]];if(mid.visibility<.45)continue;
     const val=angles[j.id];if(val===undefined)continue;
     const x=mid.x*w,y=mid.y*h;
     ctx.font='bold 44px monospace';
@@ -540,7 +545,7 @@ function calcAllAngles(lm){
   const out={};
   for(const j of ALL_JOINTS){
     const[a,b,c]=j.a;
-    if(lm[a].visibility>.3&&lm[b].visibility>.3&&lm[c].visibility>.3)out[j.id]=calcAngle(lm[a],lm[b],lm[c]);
+    if(lm[a].visibility>.45&&lm[b].visibility>.45&&lm[c].visibility>.45)out[j.id]=calcAngle(lm[a],lm[b],lm[c]);
   }
   return out;
 }
