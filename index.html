@@ -17,10 +17,8 @@
   --font:-apple-system,BlinkMacSystemFont,'SF Mono','JetBrains Mono',monospace;
 }
 html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);color:var(--text);-webkit-user-select:none;user-select:none;touch-action:manipulation}
-@media(orientation:portrait){html{transform:rotate(90deg);transform-origin:top left;width:100vh;height:100vw;position:absolute;top:0;left:100vw;overflow:hidden}}
-
 #videoLayer{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
-#video{width:100%;height:100%;object-fit:cover;background:#000}
+#video{width:100%;height:100%;object-fit:contain;background:#000}
 #video.mirror{transform:scaleX(-1)}
 #canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none}
 #videoFile{display:none}
@@ -122,7 +120,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 .load-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0;transition:width .3s}
 
 @media(max-height:420px){
-  #anglePanel{width:125px;padding:4px}.ai{padding:1px 3px}.ai .v{font-size:10px;min-width:34px}.ai .n{font-size:7px}
+  #anglePanel{width:140px;padding:4px}.ai{padding:2px 4px}.ai .v{font-size:14px;min-width:42px}.ai .n{font-size:9px}
   #bottomBar button,#ctrlPanel button{padding:3px 6px;font-size:8px}
   #topBar{padding:3px 8px;font-size:9px;gap:6px}
   #wavePanel{width:120px;height:34px}
@@ -136,6 +134,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 <canvas id="canvas"></canvas>
 <input type="file" id="videoFile" accept="video/*">
 <div id="hudOverlay"></div>
+<div id="detectWarn" style="display:none;position:fixed;top:50px;left:50%;transform:translateX(-50%);z-index:99;background:rgba(255,61,90,.9);color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;pointer-events:none">⚠ 检测异常：请确保全身在画面中</div>
 <div class="hc tl"></div><div class="hc tr"></div><div class="hc bl"></div><div class="hc br"></div>
 
 <div id="placeholder"><span class="icon">◈</span><span id="placeholderText">初始化姿态引擎...</span><div class="load-bar"><div class="load-fill" id="loadFill"></div></div></div>
@@ -164,6 +163,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 <div class="fp" id="srcTabs">
   <button class="on" onclick="switchSource('cam')">📷 实时</button>
   <button onclick="switchSource('file')">📁 导入</button>
+  <button id="btnFlip" onclick="flipCamera()">🔄 翻转</button>
   <button onclick="showCalibration()">📐 校准</button>
 </div>
 
@@ -272,6 +272,7 @@ function stopSampler(){if(sampleTimer){clearInterval(sampleTimer);sampleTimer=nu
 
 // ===== INIT =====
 let pose,video,canvas,ctx,waveCanvas,waveCtx,animId;
+let currentFacing='environment'; // 'environment'=后置, 'user'=前置
 
 window.onload=async()=>{
   video=document.getElementById('video');
@@ -281,7 +282,6 @@ window.onload=async()=>{
   waveCtx=waveCanvas.getContext('2d');
   setLoad(20);
   await initPose();
-  setLoad(70);
   await startCamera();
   setLoad(100);
   setTimeout(()=>document.getElementById('placeholder').style.display='none',300);
@@ -295,29 +295,52 @@ async function initPose(){
   let cdn=CDN1;
   // Test CDN availability
   try{const r=await fetch(CDN1+'pose_solution_packed_assets.data',{method:'HEAD'});if(!r.ok)cdn=CDN2}catch(e){cdn=CDN2}
+  setLoad(30);
   pose=new Pose({locateFile:f=>cdn+f});
-  pose.setOptions({modelComplexity:1,smoothLandmarks:true,minDetectionConfidence:.4,minTrackingConfidence:.3});
+  pose.setOptions({modelComplexity:1,smoothLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5});
   pose.onResults(onResults);
-  // Warm up: send a blank frame to force model download
-  const tmp=document.createElement('canvas');tmp.width=64;tmp.height=64;
+  setLoad(50);
+  // Warm up with a real-sized frame to fully initialize model
+  const tmp=document.createElement('canvas');tmp.width=320;tmp.height=240;
+  tmp.getContext('2d').fillRect(0,0,320,240);
   try{await pose.send({image:tmp})}catch(e){}
+  setLoad(70);
 }
 
 async function startCamera(){
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},audio:false});
+    // 停止旧的流
+    if(video.srcObject){video.srcObject.getTracks().forEach(t=>t.stop());video.srcObject=null}
+    video.src='';
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:currentFacing,width:{ideal:1280},height:{ideal:720}},audio:false});
     video.srcObject=stream;await video.play();
+    // 前置摄像头自动镜像
+    if(currentFacing==='user'){video.classList.add('mirror');state.mirror=true}
+    else{video.classList.remove('mirror');state.mirror=false}
     document.getElementById('dotCam').className='dot dot-on';
+    document.getElementById('progressBar').classList.remove('show');
+    state.source='cam';
     requestFrame();
   }catch(e){document.getElementById('placeholderText').textContent='摄像头失败: '+e.message}
+}
+
+async function flipCamera(){
+  currentFacing=currentFacing==='environment'?'user':'environment';
+  await startCamera();
 }
 
 function requestFrame(){animId=requestAnimationFrame(loop)}
 async function loop(){
   if(video.readyState>=2){
-    canvas.width=video.videoWidth||video.clientWidth;
-    canvas.height=video.videoHeight||video.clientHeight;
-    try{await pose.send({image:video})}catch(e){}
+    const vw=video.videoWidth||video.clientWidth;
+    const vh=video.videoHeight||video.clientHeight;
+    // canvas 匹配屏幕显示尺寸，确保骨架覆盖正确
+    canvas.width=canvas.clientWidth;canvas.height=canvas.clientHeight;
+    // Use offscreen canvas for model input (better mobile compatibility)
+    if(!window._offCvs){window._offCvs=document.createElement('canvas');window._offCtx=window._offCvs.getContext('2d')}
+    window._offCvs.width=vw;window._offCvs.height=vh;
+    window._offCtx.drawImage(video,0,0,vw,vh);
+    try{await pose.send({image:window._offCvs})}catch(e){}
     state.frameCount++;
     const now=performance.now();
     if(now-state.lastFpsTime>=1000){state.fps=state.frameCount;state.frameCount=0;state.lastFpsTime=now;document.getElementById('fpsDisplay').textContent=state.fps+'fps'}
@@ -331,6 +354,23 @@ function onResults(results){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   if(!results.poseLandmarks)return;
   const lm=results.poseLandmarks;
+
+  // Validate landmarks: check spatial spread (if all points clustered, detection is bad)
+  let xMin=1,xMax=0,yMin=1,yMax=0;
+  for(let i=0;i<33;i++){
+    if(lm[i].visibility>.3){
+      xMin=Math.min(xMin,lm[i].x);xMax=Math.max(xMax,lm[i].x);
+      yMin=Math.min(yMin,lm[i].y);yMax=Math.max(yMax,lm[i].y);
+    }
+  }
+  const spread=Math.max(xMax-xMin,yMax-yMin);
+  if(spread<.05){
+    // Landmarks too clustered — bad detection, skip
+    const warnEl=document.getElementById('detectWarn');
+    if(warnEl){warnEl.style.display='block';warnEl.textContent='⚠ 检测异常：未能识别人体姿态'}
+    return;
+  }
+
   state.latestLandmarks=lm;
   const w=canvas.width,h=canvas.height;
   const now=performance.now();
@@ -369,6 +409,10 @@ function onResults(results){
     fv=Math.max(0,Math.min(180,fv));
     filteredAngles[k]=fv+state.calibOffset;
   }
+
+  // Hide detection warning (spread check above already handles bad detection)
+  const warnEl=document.getElementById('detectWarn');
+  if(warnEl)warnEl.style.display='none';
 
   if(state.angles)drawAnglesOnCanvas(lm,filteredAngles,w,h);
   updateAnglePanel(filteredAngles);
@@ -440,11 +484,12 @@ function drawAnglesOnCanvas(lm,angles,w,h){
     const mid=lm[j.a[1]];if(mid.visibility<.3)continue;
     const val=angles[j.id];if(val===undefined)continue;
     const x=mid.x*w,y=mid.y*h;
-    ctx.font='bold 26px monospace';
+    ctx.font='bold 44px monospace';
     const txt=val+'°';
     const tw=ctx.measureText(txt).width;
-    ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillRect(x+6,y-22,tw+12,34);
-    ctx.fillStyle='#00f0ff';ctx.fillText(txt,x+12,y+6);
+    ctx.fillStyle='rgba(0,0,0,.9)';ctx.fillRect(x+6,y-34,tw+18,52);
+    ctx.strokeStyle='#00f0ff';ctx.lineWidth=2;ctx.strokeRect(x+6,y-34,tw+18,52);
+    ctx.fillStyle='#00f0ff';ctx.fillText(txt,x+15,y+8);
   }
 }
 
@@ -559,21 +604,42 @@ function setView(v,btn){
 function switchSource(src){
   document.querySelectorAll('#srcTabs button').forEach(b=>b.classList.remove('on'));
   event.target.classList.add('on');
-  if(src==='file'){document.getElementById('videoFile').click()}
-  else if(src==='cam'){
-    if(video.src){video.src='';video.srcObject=null}
-    startCamera();document.getElementById('progressBar').classList.remove('show');
+  if(src==='file'){
+    document.getElementById('videoFile').click();
+  }else if(src==='cam'){
+    if(video.src){video.src='';video.removeAttribute('src')}
+    if(state.recording)toggleRec();
+    startCamera();
+    document.getElementById('progressBar').classList.remove('show');
   }
 }
 
 document.getElementById('videoFile').onchange=function(e){
   const file=e.target.files[0];if(!file)return;
+  // 停止摄像头
   if(video.srcObject){video.srcObject.getTracks().forEach(t=>t.stop());video.srcObject=null}
-  video.src=URL.createObjectURL(file);video.muted=true;video.loop=true;video.play();
+  video.removeAttribute('src');
+  video.classList.remove('mirror');
+  const url=URL.createObjectURL(file);
+  video.src=url;video.muted=true;video.loop=false;
+  video.playsInline=true;
   document.getElementById('dotCam').className='dot dot-on';
   document.getElementById('progressBar').classList.add('show');
-  video.ontimeupdate=()=>{if(video.duration)document.getElementById('progressFill').style.width=(video.currentTime/video.duration*100)+'%'};
   state.source='file';
+  // 等待视频可播放后自动开始分析
+  video.onloadeddata=function(){
+    video.play().then(()=>{
+      requestFrame();
+      // 自动开始录制分析
+      if(!state.recording)toggleRec();
+    }).catch(()=>{});
+  };
+  video.ontimeupdate=()=>{if(video.duration)document.getElementById('progressFill').style.width=(video.currentTime/video.duration*100)+'%'};
+  // 视频播放结束时自动停止录制
+  video.onended=function(){
+    if(state.recording)toggleRec();
+  };
+  video.load();
 };
 
 document.getElementById('progressBar').onclick=function(e){if(video.duration)video.currentTime=e.offsetX/this.clientWidth*video.duration};
@@ -623,29 +689,56 @@ function exportData(){
   if(!state.recData.length)return;
   const wb=XLSX.utils.book_new();
 
+  // 中文列名映射
+  const COL_MAP={
+    'time':'时间(秒)','trial':'试次','quality':'综合置信度',
+    'l_shoulder_raw':'左肩(原始°)','l_shoulder':'左肩(滤波°)','l_shoulder_conf':'左肩置信度',
+    'l_elbow_raw':'左肘(原始°)','l_elbow':'左肘(滤波°)','l_elbow_conf':'左肘置信度',
+    'l_wrist_raw':'左腕(原始°)','l_wrist':'左腕(滤波°)','l_wrist_conf':'左腕置信度',
+    'l_hip_raw':'左髋(原始°)','l_hip':'左髋(滤波°)','l_hip_conf':'左髋置信度',
+    'l_knee_raw':'左膝(原始°)','l_knee':'左膝(滤波°)','l_knee_conf':'左膝置信度',
+    'l_ankle_raw':'左踝(原始°)','l_ankle':'左踝(滤波°)','l_ankle_conf':'左踝置信度',
+    'r_shoulder_raw':'右肩(原始°)','r_shoulder':'右肩(滤波°)','r_shoulder_conf':'右肩置信度',
+    'r_elbow_raw':'右肘(原始°)','r_elbow':'右肘(滤波°)','r_elbow_conf':'右肘置信度',
+    'r_wrist_raw':'右腕(原始°)','r_wrist':'右腕(滤波°)','r_wrist_conf':'右腕置信度',
+    'r_hip_raw':'右髋(原始°)','r_hip':'右髋(滤波°)','r_hip_conf':'右髋置信度',
+    'r_knee_raw':'右膝(原始°)','r_knee':'右膝(滤波°)','r_knee_conf':'右膝置信度',
+    'r_ankle_raw':'右踝(原始°)','r_ankle':'右踝(滤波°)','r_ankle_conf':'右踝置信度',
+    'c_trunk_raw':'躯干倾斜(原始°)','c_trunk':'躯干倾斜(滤波°)','c_trunk_conf':'躯干倾斜置信度',
+    'c_neck_raw':'颈部(原始°)','c_neck':'颈部(滤波°)','c_neck_conf':'颈部置信度'
+  };
+
+  function toChinese(data){
+    return data.map(row=>{
+      const newRow={};
+      for(const[k,v]of Object.entries(row)){newRow[COL_MAP[k]||k]=v}
+      return newRow;
+    });
+  }
+
   // Metadata sheet
   const meta=[
     ['MotionAngle Pro v5.0 — 数据导出报告'],
-    ['导出时间',new Date().toISOString()],
+    ['导出时间',new Date().toLocaleString('zh-CN')],
     ['采样率(Hz)',SAMPLE_RATE],
     ['总帧数',state.recData.length],
-    ['总时长(s)',+(state.recData[state.recData.length-1].time).toFixed(2)],
+    ['总时长(秒)',+(state.recData[state.recData.length-1].time).toFixed(2)],
     ['试次数',state.currentTrial],
     ['校准偏差(°)',state.calibOffset],
     ['已校准',state.calibrated?'是':'否'],
     ['模型','MediaPipe Pose v0.5 (BlazePose GHUM)'],
     ['模型复杂度','1 (Full)'],
-    ['滤波器','Butterworth 2nd-order LP, fc=4Hz'],
+    ['滤波器','EMA α=0.4'],
     ['设备',navigator.userAgent.slice(0,80)],
     ['分辨率',document.getElementById('resInfo').textContent],
     [''],
     ['列说明:'],
-    ['time','采样时间(秒)'],
-    ['trial','试次编号'],
-    ['quality','该帧综合置信度(0-1)'],
-    ['xxx_raw','原始角度(未滤波)'],
-    ['xxx','滤波后角度(Butterworth 4Hz LP)'],
-    ['xxx_conf','该关节置信度(0-1)']
+    ['时间(秒)','采样时间点'],
+    ['试次','试次编号'],
+    ['综合置信度','该帧整体检测可信度(0-1)'],
+    ['xxx(原始°)','未经滤波的原始角度'],
+    ['xxx(滤波°)','经EMA平滑后的角度'],
+    ['xxx置信度','该关节检测可信度(0-1)']
   ];
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(meta),'元数据');
 
@@ -654,44 +747,46 @@ function exportData(){
     const boundaries=[0,...state.trialMarkers,state.recData.length];
     for(let i=0;i<boundaries.length-1;i++){
       const slice=state.recData.slice(boundaries[i],boundaries[i+1]);
-      if(slice.length>0)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(slice),'试次'+(i+1));
+      if(slice.length>0)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(toChinese(slice)),'试次'+(i+1));
     }
   }else{
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(state.recData),'全部数据');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(toChinese(state.recData)),'全部数据');
   }
 
-  // Summary statistics per trial
+  // Summary statistics per trial (中文表头)
+  const STAT_MAP={
+    'trial':'试次','frames':'帧数','duration':'时长(秒)'
+  };
+  for(const j of ALL_JOINTS){
+    STAT_MAP[j.id+'_mean']=j.name+'平均°';
+    STAT_MAP[j.id+'_min']=j.name+'最小°';
+    STAT_MAP[j.id+'_max']=j.name+'最大°';
+    STAT_MAP[j.id+'_range']=j.name+'范围°';
+    STAT_MAP[j.id+'_sd']=j.name+'标准差°';
+  }
   const stats=[];
   const boundaries=[0,...state.trialMarkers,state.recData.length];
   for(let t=0;t<boundaries.length-1;t++){
     const slice=state.recData.slice(boundaries[t],boundaries[t+1]);
     if(!slice.length)continue;
-    const row={trial:t+1,frames:slice.length,duration:+(slice[slice.length-1].time-slice[0].time).toFixed(2)};
+    const row={'试次':t+1,'帧数':slice.length,'时长(秒)':+(slice[slice.length-1].time-slice[0].time).toFixed(2)};
     for(const j of ALL_JOINTS){
       const vals=slice.map(r=>r[j.id]).filter(v=>v!==undefined);
       if(vals.length){
-        row[j.id+'_mean']=+(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
-        row[j.id+'_min']=Math.min(...vals);
-        row[j.id+'_max']=Math.max(...vals);
-        row[j.id+'_range']=Math.max(...vals)-Math.min(...vals);
-        // SD
+        row[j.name+'平均°']=+(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
+        row[j.name+'最小°']=Math.min(...vals);
+        row[j.name+'最大°']=Math.max(...vals);
+        row[j.name+'范围°']=Math.max(...vals)-Math.min(...vals);
         const mean=vals.reduce((a,b)=>a+b,0)/vals.length;
-        row[j.id+'_sd']=+Math.sqrt(vals.reduce((a,b)=>a+(b-mean)**2,0)/vals.length).toFixed(2);
+        row[j.name+'标准差°']=+Math.sqrt(vals.reduce((a,b)=>a+(b-mean)**2,0)/vals.length).toFixed(2);
       }
     }
     stats.push(row);
   }
   if(stats.length)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(stats),'统计摘要');
 
-  const filename='MotionAngle_'+new Date().toISOString().slice(0,19).replace(/[T:]/g,'-')+'.xlsx';
+  const filename='运动角度分析_'+new Date().toLocaleString('zh-CN').replace(/[\/\s:]/g,'-')+'.xlsx';
   XLSX.writeFile(wb,filename);
-
-  // Also export CSV for universal compatibility
-  const csvRows=[Object.keys(state.recData[0]).join(',')];
-  for(const row of state.recData)csvRows.push(Object.values(row).join(','));
-  const csvBlob=new Blob([csvRows.join('\n')],{type:'text/csv'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(csvBlob);
-  a.download=filename.replace('.xlsx','.csv');a.click();
 }
 
 // ===== UTILS =====
