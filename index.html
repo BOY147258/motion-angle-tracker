@@ -126,6 +126,42 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
   #wavePanel{width:120px;height:34px}
   .ai .conf{display:none}
 }
+
+/* ===== 手机横竖屏自适应 ===== */
+/* 竖屏模式：角度面板移到底部，工具栏重新排列 */
+@media (orientation: portrait) {
+  #anglePanel { top: auto; bottom: 52px; right: 4px; left: 4px; width: auto; max-height: 40vh; }
+  #srcTabs { top: 4px; left: 4px; }
+  #srcTabs button { font-size: 8px; padding: 2px 5px; }
+  #topBar { font-size: 8px; padding: 3px 8px; gap: 5px; top: 4px; }
+  #topBar .logo { font-size: 9px; }
+  #bottomBar { bottom: 4px; padding: 3px 6px; gap: 2px; left: 50%; }
+  #bottomBar button { font-size: 8px; padding: 3px 5px; }
+  #ctrlPanel { bottom: 4px; left: auto; right: 4px; }
+  #ctrlPanel button { font-size: 8px; padding: 3px 6px; }
+  .ai .v { font-size: 15px; min-width: 40px; }
+  .ai { padding: 1px 4px; font-size: 8px; }
+  #wavePanel { display: none; }
+  #infoBar { bottom: 34px; font-size: 7px; gap: 4px; left: 4px; }
+  #recBadge { top: 4px; right: 4px; font-size: 8px; padding: 2px 5px; }
+  #trialBadge { bottom: 4px; right: auto; left: 4px; font-size: 8px; }
+  #progressBar { bottom: 34px; }
+}
+
+/* 小屏手机（宽度 < 400px）进一步压缩 */
+@media (max-width: 400px) {
+  #anglePanel .ai .v { font-size: 13px; min-width: 34px; }
+  #anglePanel .ai .n { font-size: 9px; }
+  #anglePanel { padding: 4px; max-height: 35vh; }
+  #srcTabs button { font-size: 7px; padding: 2px 4px; }
+}
+
+/* 刘海屏安全区适配 */
+@supports (padding: env(safe-area-inset-top)) {
+  #topBar { padding-left: calc(4px + env(safe-area-inset-left)); padding-right: calc(4px + env(safe-area-inset-right)); }
+  #bottomBar { padding-bottom: calc(3px + env(safe-area-inset-bottom)); }
+  #ctrlPanel { padding-bottom: calc(3px + env(safe-area-inset-bottom)); }
+}
 </style>
 </head>
 <body>
@@ -197,7 +233,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
   <button id="btnCog" onclick="toggle('cog')">⊕<span class="tip">重心</span></button>
   <button id="btnTrail" onclick="toggle('trail')">〰<span class="tip">轨迹</span></button>
   <button id="btnGrid" onclick="toggle('grid')">▦<span class="tip">网格</span></button>
-  <button id="btnMirror" onclick="toggle('mirror')">⇆<span class="tip">镜像</span></button>
+  <button id="btnFull" onclick="toggleFullscreen()">⛶<span class="tip">全屏</span></button>
 </div>
 
 <div class="fp" id="ctrlPanel">
@@ -280,6 +316,10 @@ window.onload=async()=>{
   ctx=canvas.getContext('2d');
   waveCanvas=document.getElementById('waveCanvas');
   waveCtx=waveCanvas.getContext('2d');
+  // 屏幕方向变化监听 — 自动适配
+  window.addEventListener('orientationchange',()=>{setTimeout(fixLayout,300)});
+  window.addEventListener('resize',()=>fixLayout());
+  fixLayout();
   setLoad(20);
   await initPose();
   await startCamera();
@@ -297,7 +337,7 @@ async function initPose(){
   try{const r=await fetch(CDN1+'pose_solution_packed_assets.data',{method:'HEAD'});if(!r.ok)cdn=CDN2}catch(e){cdn=CDN2}
   setLoad(30);
   pose=new Pose({locateFile:f=>cdn+f});
-  pose.setOptions({modelComplexity:1,smoothLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5});
+  pose.setOptions({modelComplexity:1,smoothLandmarks:true,minDetectionConfidence:.65,minTrackingConfidence:.6});
   pose.onResults(onResults);
   setLoad(50);
   // Warm up with a real-sized frame to fully initialize model
@@ -355,19 +395,10 @@ function onResults(results){
   if(!results.poseLandmarks)return;
   const lm=results.poseLandmarks;
 
-  // Validate landmarks: check spatial spread (if all points clustered, detection is bad)
-  let xMin=1,xMax=0,yMin=1,yMax=0;
-  for(let i=0;i<33;i++){
-    if(lm[i].visibility>.3){
-      xMin=Math.min(xMin,lm[i].x);xMax=Math.max(xMax,lm[i].x);
-      yMin=Math.min(yMin,lm[i].y);yMax=Math.max(yMax,lm[i].y);
-    }
-  }
-  const spread=Math.max(xMax-xMin,yMax-yMin);
-  if(spread<.05){
-    // Landmarks too clustered — bad detection, skip
+  // 人体形状验证 — 排除非人体误检
+  if(!isHumanBody(lm)){
     const warnEl=document.getElementById('detectWarn');
-    if(warnEl){warnEl.style.display='block';warnEl.textContent='⚠ 检测异常：未能识别人体姿态'}
+    if(warnEl){warnEl.style.display='block';warnEl.textContent='⚠ 未检测到人体，请调整位置'}
     return;
   }
 
@@ -514,6 +545,53 @@ function calcAllAngles(lm){
   return out;
 }
 
+// ===== HUMAN VALIDATION — 排除非人体误检 =====
+function isHumanBody(lm){
+  // 1) 必须有足够多的关键点可见
+  let visCount=0;
+  for(let i=0;i<33;i++){if(lm[i].visibility>.5)visCount++}
+  if(visCount<12)return false; // 至少12个关节点可见才可能是人
+
+  // 2) 头部关键点必须存在（鼻子或眼睛或耳朵）
+  const headVis=lm[0].visibility>.4; // nose
+  if(!headVis)return false;
+
+  // 3) 肩膀应在髋部上方（y坐标: 越小越靠上）
+  const shoulders=[11,12]; const hips=[23,24];
+  let shoulderY=0,sCount=0,hipY=0,hCount=0;
+  for(const s of shoulders){if(lm[s].visibility>.3){shoulderY+=lm[s].y;sCount++}}
+  for(const h of hips){if(lm[h].visibility>.3){hipY+=lm[h].y;hCount++}}
+  if(sCount>0&&hCount>0){
+    const avgShoulderY=shoulderY/sCount;
+    const avgHipY=hipY/hCount;
+    if(avgShoulderY>=avgHipY)return false; // 肩膀不在髋部上方 → 不是人
+  }
+
+  // 4) 颈部和躯干比例 — 肩宽与头高比应在合理范围
+  // 肩宽 ≈ 2~4 倍头高
+  if(lm[11].visibility>.3&&lm[12].visibility>.3&&lm[0].visibility>.3){
+    const shoulderWidth=Math.sqrt((lm[11].x-lm[12].x)**2+(lm[11].y-lm[12].y)**2);
+    // 用鼻子到肩中点的距离近似头高
+    const midShoulderX=(lm[11].x+lm[12].x)/2;
+    const midShoulderY=(lm[11].y+lm[12].y)/2;
+    const headHeight=Math.sqrt((lm[0].x-midShoulderX)**2+(lm[0].y-midShoulderY)**2);
+    if(headHeight>0&&(shoulderWidth/headHeight<1.2||shoulderWidth/headHeight>6))return false;
+  }
+
+  // 5) 四肢不能全部挤在一起（进一步防误检）
+  let xMin=1,xMax=0,yMin=1,yMax=0;
+  for(let i=0;i<33;i++){
+    if(lm[i].visibility>.3){
+      xMin=Math.min(xMin,lm[i].x);xMax=Math.max(xMax,lm[i].x);
+      yMin=Math.min(yMin,lm[i].y);yMax=Math.max(yMax,lm[i].y);
+    }
+  }
+  const spread=Math.max(xMax-xMin,yMax-yMin);
+  if(spread<.08)return false; // 所有点挤在一起 → 不是人
+
+  return true;
+}
+
 // ===== PANEL UPDATE =====
 function updateAnglePanel(angles){
   updateSide('anglesL',JOINTS.L,angles);
@@ -587,6 +665,14 @@ function startCalibration(){
 }
 
 // ===== CONTROLS =====
+function toggleFullscreen(){
+  if(!document.fullscreenElement){
+    document.documentElement.requestFullscreen().catch(()=>{});
+  }else{
+    document.exitFullscreen().catch(()=>{});
+  }
+}
+
 function toggle(key){
   state[key]=!state[key];
   const map={skeleton:'btnSkel',angles:'btnAng',cog:'btnCog',trail:'btnTrail',grid:'btnGrid',mirror:'btnMirror'};
@@ -792,6 +878,34 @@ function exportData(){
 // ===== UTILS =====
 function formatTimeMs(s){const m=Math.floor(s/60),sec=Math.floor(s%60),ms=Math.floor((s%1)*1000);return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0')+'.'+String(ms).padStart(3,'0')}
 function formatTimeSec(s){const m=Math.floor(s/60),sec=Math.floor(s%60);return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0')}
+
+// ===== 横竖屏布局适配 =====
+function fixLayout(){
+  const isPortrait=window.innerHeight>window.innerWidth;
+  const anglePanel=document.getElementById('anglePanel');
+  if(isPortrait){
+    // 竖屏：角度面板放底部
+    anglePanel.style.top='auto';
+    anglePanel.style.bottom='52px';
+    anglePanel.style.right='4px';
+    anglePanel.style.left='4px';
+    anglePanel.style.width='auto';
+    anglePanel.style.maxHeight='40vh';
+  }else{
+    // 横屏：角度面板放右侧
+    anglePanel.style.top='6px';
+    anglePanel.style.bottom='auto';
+    anglePanel.style.right='6px';
+    anglePanel.style.left='auto';
+    anglePanel.style.width='155px';
+    anglePanel.style.maxHeight='calc(100vh - 12px)';
+  }
+  // 重置 canvas 尺寸以匹配新布局
+  if(canvas){
+    canvas.width=canvas.clientWidth;
+    canvas.height=canvas.clientHeight;
+  }
+}
 </script>
 </body>
 </html>
