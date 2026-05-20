@@ -266,50 +266,58 @@ let state={
   latestLandmarks:null,latestConfidence:0
 };
 
-// ===== SIMPLE EXPONENTIAL MOVING AVERAGE FILTER =====
-// EMA with lower alpha = smoother, less jitter
-class SmoothFilter{
-  constructor(){this.val=null;this.prevVal=null}
-  reset(){this.val=null;this.prevVal=null}
+// ===== 两级滤波级联：中值滤波(去毛刺) + EMA(平滑) =====
+// 先过中值(3帧窗口)去掉突变，再过EMA降低抖动
+class MedianFilter{
+  constructor(){this.buffer=[]}
+  reset(){this.buffer=[]}
   filter(x){
-    // Outlier rejection: if single-frame jump > 25°, use previous value
-    if(this.val!==null&&Math.abs(x-this.val)>25&&this.prevVal!==null){
-      x=this.val+(this.val-this.prevVal);
-    }
-    if(this.val===null){this.val=x;this.prevVal=x;return Math.round(x)}
-    this.prevVal=this.val;
-    this.val+= 0.25*(x-this.val);
-    return Math.round(this.val);
+    this.buffer.push(x);
+    if(this.buffer.length>3)this.buffer.shift();
+    if(this.buffer.length<3)return x;
+    const sorted=[...this.buffer].sort((a,b)=>a-b);
+    return sorted[1];
   }
 }
 
-// One filter per joint
-const filters={};
-for(const j of ALL_JOINTS){filters[j.id]=new SmoothFilter()}
+class SmoothFilter{
+  constructor(){this.val=null}
+  reset(){this.val=null}
+  filter(x){
+    if(this.val===null){this.val=x;return x}
+    this.val+= 0.18*(x-this.val); // alpha=0.18 更平滑
+    return Math.round(this.val*10)/10; // 保留1位小数
+  }
+}
 
-// ===== FIXED-RATE SAMPLER (30Hz) =====
+// 每个关节独立滤波器
+const medianFilters={};
+const smoothFilters={};
+for(const j of ALL_JOINTS){medianFilters[j.id]=new MedianFilter();smoothFilters[j.id]=new SmoothFilter()}
+
+// ===== 帧同步采样（代替setInterval） =====
 const SAMPLE_RATE=30;
 const SAMPLE_INTERVAL=1000/SAMPLE_RATE;
-let sampleTimer=null;
+let lastSampleTime=0;
 let latestAngles={},latestConfidences={};
 
-function startSampler(){
-  sampleTimer=setInterval(()=>{
-    if(!state.recording||!state.latestLandmarks)return;
-    const t=(performance.now()-state.recStart)/1000;
-    const row={time:+t.toFixed(4),trial:state.currentTrial,quality:+(state.latestConfidence).toFixed(3)};
-    for(const j of ALL_JOINTS){
-      const raw=latestAngles[j.id];
-      if(raw!==undefined){
-        row[j.id+'_raw']=raw;
-        row[j.id]=Math.round(filters[j.id].filter(raw));
-        row[j.id+'_conf']=+(latestConfidences[j.id]||0).toFixed(2);
-      }
+// 在onResults中触发的采样函数
+function tryRecordSample(now){
+  if(!state.recording||!state.latestLandmarks)return;
+  if(now-lastSampleTime<SAMPLE_INTERVAL)return;
+  lastSampleTime=now;
+  const t=(now-state.recStart)/1000;
+  const row={time:+t.toFixed(4),trial:state.currentTrial,quality:+(state.latestConfidence).toFixed(3)};
+  for(const j of ALL_JOINTS){
+    const raw=latestAngles[j.id];
+    if(raw!==undefined){
+      row[j.id+'_raw']=raw;
+      row[j.id]=Math.round(smoothFilters[j.id].filter(medianFilters[j.id].filter(raw)));
+      row[j.id+'_conf']=+(latestConfidences[j.id]||0).toFixed(2);
     }
-    state.recData.push(row);
-  },SAMPLE_INTERVAL);
+  }
+  state.recData.push(row);
 }
-function stopSampler(){if(sampleTimer){clearInterval(sampleTimer);sampleTimer=null}}
 
 // ===== INIT =====
 let pose,video,canvas,ctx,waveCanvas,waveCtx,animId;
@@ -441,10 +449,13 @@ function onResults(results){
   latestAngles=rawAngles;
   const filteredAngles={};
   for(const[k,v]of Object.entries(rawAngles)){
-    let fv=Math.round(filters[k].filter(v));
+    let fv=smoothFilters[k].filter(medianFilters[k].filter(v));
     fv=Math.max(0,Math.min(180,fv));
     filteredAngles[k]=fv+state.calibOffset;
   }
+
+  // 帧同步采样（替代旧的setInterval）
+  tryRecordSample(now);
 
   // Hide detection warning (spread check above already handles bad detection)
   const warnEl=document.getElementById('detectWarn');
@@ -520,12 +531,12 @@ function drawAnglesOnCanvas(lm,angles,w,h){
     const mid=lm[j.a[1]];if(mid.visibility<.45)continue;
     const val=angles[j.id];if(val===undefined)continue;
     const x=mid.x*w,y=mid.y*h;
-    ctx.font='bold 44px monospace';
-    const txt=val+'°';
+    ctx.font='bold 38px monospace';
+    const txt=val.toFixed(1)+'°';
     const tw=ctx.measureText(txt).width;
-    ctx.fillStyle='rgba(0,0,0,.9)';ctx.fillRect(x+6,y-34,tw+18,52);
-    ctx.strokeStyle='#00f0ff';ctx.lineWidth=2;ctx.strokeRect(x+6,y-34,tw+18,52);
-    ctx.fillStyle='#00f0ff';ctx.fillText(txt,x+15,y+8);
+    ctx.fillStyle='rgba(0,0,0,.9)';ctx.fillRect(x+6,y-30,tw+16,46);
+    ctx.strokeStyle='#00f0ff';ctx.lineWidth=2;ctx.strokeRect(x+6,y-30,tw+16,46);
+    ctx.fillStyle='#00f0ff';ctx.fillText(txt,x+14,y+6);
   }
 }
 
@@ -617,7 +628,7 @@ function updateSide(elId,joints,angles){
     const cls=val!==undefined?(val<30||val>160?'w':'on'):'off';
     const confCls=conf>.75?'conf-h':conf>.5?'conf-m':'conf-l';
     const side=JOINTS.L.includes(j)?'l':JOINTS.R.includes(j)?'r':'c';
-    html+=`<div class="ai ${side}${val===undefined?' dis':''}"><span class="n">${j.name}</span><span class="v ${cls}">${val!==undefined?val+'°':'--'}</span><span class="conf ${confCls}"></span></div>`;
+    html+=`<div class="ai ${side}${val===undefined?' dis':''}"><span class="n">${j.name}</span><span class="v ${cls}">${val!==undefined?val.toFixed(1)+'°':'--'}</span><span class="conf ${confCls}"></span></div>`;
   }
   el.innerHTML=html;
 }
@@ -740,9 +751,10 @@ function toggleRec(){
   state.recording=!state.recording;
   const btn=document.getElementById('btnRec'),badge=document.getElementById('recBadge');
   if(state.recording){
-    state.recData=[];state.recStart=performance.now();state.trialMarkers=[];state.currentTrial=1;
-    // Reset filters
-    for(const f of Object.values(filters))f.reset();
+    state.recData=[];state.recStart=performance.now();lastSampleTime=0;state.trialMarkers=[];state.currentTrial=1;
+    // 重置两级滤波器
+    for(const f of Object.values(medianFilters))f.reset();
+    for(const f of Object.values(smoothFilters))f.reset();
     btn.classList.add('active');btn.textContent='■ 停止';
     badge.classList.add('show');
     document.getElementById('btnExport').disabled=true;
@@ -750,11 +762,9 @@ function toggleRec(){
     document.getElementById('trialNum').textContent='1';
     document.getElementById('trialBadge').classList.add('show');
     document.getElementById('trialCount').textContent='1';
-    startSampler();
   }else{
     btn.classList.remove('active');btn.textContent='● 录制';
     badge.classList.remove('show');
-    stopSampler();
     if(state.recData.length>0){
       document.getElementById('btnExport').disabled=false;
       document.getElementById('trialCount').textContent=state.currentTrial;
@@ -819,7 +829,7 @@ function exportData(){
     ['已校准',state.calibrated?'是':'否'],
     ['模型','MediaPipe Pose v0.5 (BlazePose GHUM)'],
     ['模型复杂度','1 (Full)'],
-    ['滤波器','EMA α=0.4'],
+    ['滤波器','中值滤波(3帧) + EMA α=0.18'],
     ['设备',navigator.userAgent.slice(0,80)],
     ['分辨率',document.getElementById('resInfo').textContent],
     [''],
