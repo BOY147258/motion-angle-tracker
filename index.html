@@ -34,32 +34,32 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 .fp{position:fixed;z-index:10;background:var(--panel);border:1px solid var(--border);border-radius:10px;backdrop-filter:blur(12px);box-shadow:var(--glow)}
 
 /* Top bar */
-#topBar{top:6px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:4px 12px;border-radius:14px;font-size:10px}
-.logo{font-weight:800;font-size:11px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:1px}
-.dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:3px}
+#topBar{top:6px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:12px;font-size:9px}
+.logo{font-weight:800;font-size:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:.5px}
+.dot{width:5px;height:5px;border-radius:50%;display:inline-block;margin-right:2px}
 .dot-on{background:var(--green);box-shadow:0 0 6px var(--green)}.dot-off{background:var(--dim)}.dot-rec{background:var(--red);animation:blink .5s infinite}
 @keyframes blink{50%{opacity:.2}}
 
 /* Quality badge */
-#qualBadge{padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700}
+#qualBadge{padding:2px 5px;border-radius:3px;font-size:8px;font-weight:700}
 .q-high{background:rgba(0,230,118,.15);color:var(--green)}.q-mid{background:rgba(255,145,0,.15);color:var(--orange)}.q-low{background:rgba(255,61,90,.15);color:var(--red)}
 
 /* Source tabs */
 #srcTabs{top:6px;left:8px;display:flex;gap:2px;padding:3px 5px;border-radius:8px}
-#srcTabs button{font:9px var(--font);padding:3px 7px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--dim);cursor:pointer;transition:all .2s}
+#srcTabs button{font:8px var(--font);padding:3px 6px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--dim);cursor:pointer;transition:all .2s}
 #srcTabs button.on{color:var(--accent);border-color:var(--accent);background:rgba(0,240,255,.06)}
 
 /* Angle panel */
-#anglePanel{top:6px;right:6px;width:155px;max-height:calc(100vh - 12px);overflow-y:auto;padding:6px;border-radius:10px}
+#anglePanel{top:6px;right:6px;width:140px;max-height:calc(100vh - 12px);overflow-y:auto;padding:5px;border-radius:8px}
 #anglePanel::-webkit-scrollbar{width:0}
-.pt{font-size:7px;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px;margin:4px 0 3px;display:flex;align-items:center;gap:4px}
-.pt::before{content:'';flex:0 0 6px;height:1px;background:var(--accent);opacity:.4}
-.ai{display:flex;justify-content:space-between;align-items:center;padding:2px 5px;margin-bottom:1px;border-radius:3px;font-size:9px;border-left:2px solid transparent;transition:background .15s}
+.pt{font-size:7px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin:3px 0 2px;display:flex;align-items:center;gap:3px}
+.pt::before{content:'';flex:0 0 5px;height:1px;background:var(--accent);opacity:.4}
+.ai{display:flex;justify-content:space-between;align-items:center;padding:1px 4px;margin-bottom:1px;border-radius:2px;font-size:8px;border-left:2px solid transparent;transition:background .12s}
 .ai.l{border-left-color:var(--orange)}.ai.r{border-left-color:var(--blue)}.ai.c{border-left-color:var(--accent2)}
-.ai.dis{opacity:.15}
-.ai .n{color:var(--dim);font-size:11px}.ai .v{font-weight:700;font-size:20px;font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
+.ai.dis{opacity:.12}
+.ai .n{color:var(--dim);font-size:10px}.ai .v{font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;min-width:46px;text-align:right}
 .ai .v.on{color:var(--accent)}.ai .v.w{color:var(--orange)}.ai .v.off{color:var(--dim)}
-.ai .conf{width:3px;height:10px;border-radius:1px;margin-left:3px}
+.ai .conf{width:3px;height:8px;border-radius:1px;margin-left:2px}
 .conf-h{background:var(--green)}.conf-m{background:var(--orange)}.conf-l{background:var(--red)}
 
 .vt{display:flex;gap:2px;margin-bottom:4px}
@@ -67,16 +67,16 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 .vt button.on{color:var(--accent2);border-color:var(--accent2);background:rgba(124,91,245,.06)}
 
 /* Bottom toolbar */
-#bottomBar{bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:3px;padding:4px 8px;border-radius:10px}
-#bottomBar button{font:9px var(--font);padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--dim);cursor:pointer;position:relative;transition:all .2s}
+#bottomBar{bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:2px;padding:3px 7px;border-radius:8px}
+#bottomBar button{font:8px var(--font);padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--dim);cursor:pointer;position:relative;transition:all .15s}
 #bottomBar button.on{color:var(--accent);border-color:var(--accent);background:rgba(0,240,255,.05)}
-#bottomBar button .tip{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);padding:3px 7px;background:var(--panel);border:1px solid var(--border);border-radius:4px;font-size:8px;color:var(--text);white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s}
+#bottomBar button .tip{position:absolute;bottom:calc(100% + 3px);left:50%;transform:translateX(-50%);padding:2px 6px;background:var(--panel);border:1px solid var(--border);border-radius:4px;font-size:7px;color:var(--text);white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s}
 #bottomBar button:active .tip{opacity:1}
 
 /* Control panel */
-#ctrlPanel{bottom:10px;left:8px;display:flex;gap:3px;padding:4px 6px;border-radius:10px}
-#ctrlPanel button{font:9px var(--font);padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:transparent;cursor:pointer;font-weight:600;transition:all .2s}
-.rb{color:var(--red)!important;border-color:var(--red)!important}.rb.active{background:var(--red)!important;color:#fff!important;box-shadow:0 0 10px rgba(255,61,90,.3)!important}
+#ctrlPanel{bottom:8px;left:8px;display:flex;gap:2px;padding:3px 5px;border-radius:8px}
+#ctrlPanel button{font:8px var(--font);padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:transparent;cursor:pointer;font-weight:600;transition:all .15s}
+.rb{color:var(--red)!important;border-color:var(--red)!important}.rb.active{background:var(--red)!important;color:#fff!important;box-shadow:0 0 8px rgba(255,61,90,.3)!important}
 .mb{color:var(--orange)!important;border-color:var(--orange)!important}.mb:hover{background:rgba(255,145,0,.1)!important}
 .eb{color:var(--green)!important;border-color:var(--green)!important}.eb:hover:not(:disabled){background:var(--green)!important;color:#000!important}
 #ctrlPanel button:disabled{opacity:.2;cursor:default}
@@ -86,15 +86,15 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 #recBadge.show{display:flex}
 
 /* Info bar */
-#infoBar{bottom:42px;left:8px;padding:2px 7px;border-radius:4px;font-size:8px;color:var(--dim);display:flex;gap:8px}
+#infoBar{bottom:34px;left:8px;padding:2px 6px;border-radius:3px;font-size:7px;color:var(--dim);display:flex;gap:6px}
 #infoBar .hl{color:var(--text);font-weight:600}
 
 /* Waveform */
-#wavePanel{bottom:42px;right:6px;width:155px;height:44px;padding:3px;border-radius:6px;overflow:hidden}
+#wavePanel{bottom:36px;right:6px;width:140px;height:36px;padding:2px;border-radius:4px;overflow:hidden}
 #waveCanvas{width:100%;height:100%;display:block}
 
 /* Progress */
-#progressBar{position:fixed;bottom:40px;left:12%;width:76%;height:3px;background:rgba(255,255,255,.04);border-radius:2px;z-index:10;display:none;cursor:pointer}
+#progressBar{position:fixed;bottom:36px;left:12%;width:76%;height:2px;background:rgba(255,255,255,.04);border-radius:2px;z-index:10;display:none;cursor:pointer}
 #progressBar.show{display:block}
 #progressFill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;width:0;transition:width .1s}
 
@@ -130,30 +130,30 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 /* ===== 手机横竖屏自适应 ===== */
 /* 竖屏模式：角度面板移到底部，工具栏重新排列 */
 @media (orientation: portrait) {
-  #anglePanel { top: auto; bottom: 52px; right: 4px; left: 4px; width: auto; max-height: 40vh; }
+  #anglePanel { top: auto; bottom: 44px; right: 4px; left: 4px; width: auto; max-height: 35vh; }
   #srcTabs { top: 4px; left: 4px; }
-  #srcTabs button { font-size: 8px; padding: 2px 5px; }
-  #topBar { font-size: 8px; padding: 3px 8px; gap: 5px; top: 4px; }
-  #topBar .logo { font-size: 9px; }
-  #bottomBar { bottom: 4px; padding: 3px 6px; gap: 2px; left: 50%; }
-  #bottomBar button { font-size: 8px; padding: 3px 5px; }
+  #srcTabs button { font-size: 7px; padding: 2px 4px; }
+  #topBar { font-size: 7px; padding: 2px 6px; gap: 4px; top: 4px; }
+  #topBar .logo { font-size: 8px; }
+  #bottomBar { bottom: 4px; padding: 2px 5px; gap: 1px; left: 50%; }
+  #bottomBar button { font-size: 7px; padding: 2px 4px; }
   #ctrlPanel { bottom: 4px; left: auto; right: 4px; }
-  #ctrlPanel button { font-size: 8px; padding: 3px 6px; }
-  .ai .v { font-size: 15px; min-width: 40px; }
-  .ai { padding: 1px 4px; font-size: 8px; }
+  #ctrlPanel button { font-size: 7px; padding: 2px 5px; }
+  .ai .v { font-size: 13px; min-width: 36px; }
+  .ai { padding: 1px 3px; font-size: 7px; }
   #wavePanel { display: none; }
-  #infoBar { bottom: 34px; font-size: 7px; gap: 4px; left: 4px; }
-  #recBadge { top: 4px; right: 4px; font-size: 8px; padding: 2px 5px; }
-  #trialBadge { bottom: 4px; right: auto; left: 4px; font-size: 8px; }
-  #progressBar { bottom: 34px; }
+  #infoBar { bottom: 30px; font-size: 6px; gap: 3px; left: 4px; }
+  #recBadge { top: 4px; right: 4px; font-size: 7px; padding: 2px 4px; }
+  #trialBadge { bottom: 4px; right: auto; left: 4px; font-size: 7px; }
+  #progressBar { bottom: 30px; }
 }
 
 /* 小屏手机（宽度 < 400px）进一步压缩 */
 @media (max-width: 400px) {
-  #anglePanel .ai .v { font-size: 13px; min-width: 34px; }
-  #anglePanel .ai .n { font-size: 9px; }
-  #anglePanel { padding: 4px; max-height: 35vh; }
-  #srcTabs button { font-size: 7px; padding: 2px 4px; }
+  #anglePanel .ai .v { font-size: 12px; min-width: 32px; }
+  #anglePanel .ai .n { font-size: 8px; }
+  #anglePanel { padding: 3px; max-height: 30vh; }
+  #srcTabs button { font-size: 6px; padding: 2px 3px; }
 }
 
 /* 刘海屏安全区适配 */
@@ -295,6 +295,26 @@ const medianFilters={};
 const smoothFilters={};
 for(const j of ALL_JOINTS){medianFilters[j.id]=new MedianFilter();smoothFilters[j.id]=new SmoothFilter()}
 
+// ===== 关节坐标平滑（EMA on x,y） =====
+// MediaPipe原生smoothLandmarks有时不够平滑，这里再加一层
+class LandmarkSmoother{
+  constructor(){this.smoothed=null}
+  reset(){this.smoothed=null}
+  smooth(lm){
+    if(!this.smoothed){this.smoothed=lm.map(p=>({...p}));return this.smoothed}
+    for(let i=0;i<33;i++){
+      if(lm[i].visibility>.3){
+        this.smoothed[i].x+=.35*(lm[i].x-this.smoothed[i].x);
+        this.smoothed[i].y+=.35*(lm[i].y-this.smoothed[i].y);
+        this.smoothed[i].z+=.35*(lm[i].z-this.smoothed[i].z);
+        this.smoothed[i].visibility=lm[i].visibility;
+      }
+    }
+    return this.smoothed;
+  }
+}
+const landmarkSmoother=new LandmarkSmoother();
+
 // ===== 帧同步采样（代替setInterval） =====
 const SAMPLE_RATE=30;
 const SAMPLE_INTERVAL=1000/SAMPLE_RATE;
@@ -406,16 +426,18 @@ async function loop(){
 function onResults(results){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   if(!results.poseLandmarks)return;
-  const lm=results.poseLandmarks;
+  const rawLm=results.poseLandmarks;
 
-  // 人体形状验证 — 排除非人体误检
-  if(!isHumanBody(lm)){
+  // 人体形状验证 — 排除非人体误检（用原始数据判断）
+  if(!isHumanBody(rawLm)){
     const warnEl=document.getElementById('detectWarn');
     if(warnEl){warnEl.style.display='block';warnEl.textContent='⚠ 未检测到人体，请调整位置'}
     return;
   }
 
-  state.latestLandmarks=lm;
+  // 平滑坐标用于绘图（骨架不抖）；角度仍用原始数据保证精度
+  const smLm=landmarkSmoother.smooth(rawLm);
+  state.latestLandmarks=rawLm;
   const w=canvas.width,h=canvas.height;
   const now=performance.now();
 
@@ -428,7 +450,7 @@ function onResults(results){
   let confSum=0,confN=0;
   for(const j of ALL_JOINTS){
     const pts=j.a;
-    const minVis=Math.min(lm[pts[0]].visibility,lm[pts[1]].visibility,lm[pts[2]].visibility);
+    const minVis=Math.min(rawLm[pts[0]].visibility,rawLm[pts[1]].visibility,rawLm[pts[2]].visibility);
     latestConfidences[j.id]=minVis;
     confSum+=minVis;confN++;
   }
@@ -437,15 +459,15 @@ function onResults(results){
 
   // Grid
   if(state.grid)drawGrid(w,h);
-  // Skeleton
-  if(state.skeleton)drawSkeleton(lm,w,h);
-  // COG
-  if(state.cog)drawCOG(lm,w,h);
-  // Trail
-  if(state.trail)drawTrail(lm,w,h);
+  // Skeleton (用平滑坐标)
+  if(state.skeleton)drawSkeleton(smLm,w,h);
+  // COG (用平滑坐标)
+  if(state.cog)drawCOG(smLm,w,h);
+  // Trail (用平滑坐标)
+  if(state.trail)drawTrail(smLm,w,h);
 
-  // Angles (raw + filtered for display)
-  const rawAngles=calcAllAngles(lm);
+  // Angles (用原始坐标计算)
+  const rawAngles=calcAllAngles(rawLm);
   latestAngles=rawAngles;
   const filteredAngles={};
   for(const[k,v]of Object.entries(rawAngles)){
@@ -461,7 +483,7 @@ function onResults(results){
   const warnEl=document.getElementById('detectWarn');
   if(warnEl)warnEl.style.display='none';
 
-  if(state.angles)drawAnglesOnCanvas(lm,filteredAngles,w,h);
+  if(state.angles)drawAnglesOnCanvas(smLm,filteredAngles,w,h);
   updateAnglePanel(filteredAngles);
   updateWaveform(filteredAngles);
 
@@ -531,12 +553,12 @@ function drawAnglesOnCanvas(lm,angles,w,h){
     const mid=lm[j.a[1]];if(mid.visibility<.45)continue;
     const val=angles[j.id];if(val===undefined)continue;
     const x=mid.x*w,y=mid.y*h;
-    ctx.font='bold 38px monospace';
+    ctx.font='bold 16px monospace';
     const txt=val.toFixed(1)+'°';
     const tw=ctx.measureText(txt).width;
-    ctx.fillStyle='rgba(0,0,0,.9)';ctx.fillRect(x+6,y-30,tw+16,46);
-    ctx.strokeStyle='#00f0ff';ctx.lineWidth=2;ctx.strokeRect(x+6,y-30,tw+16,46);
-    ctx.fillStyle='#00f0ff';ctx.fillText(txt,x+14,y+6);
+    ctx.fillStyle='rgba(0,0,0,.65)';ctx.fillRect(x+5,y-20,tw+8,22);
+    ctx.strokeStyle='rgba(0,240,255,.5)';ctx.lineWidth=1;ctx.strokeRect(x+5,y-20,tw+8,22);
+    ctx.fillStyle='rgba(0,240,255,.9)';ctx.fillText(txt,x+9,y-3);
   }
 }
 
