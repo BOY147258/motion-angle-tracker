@@ -670,8 +670,8 @@ async function initReceiver(){
 function setLoad(p){document.getElementById('loadFill').style.width=p+'%'}
 
 // ===== 网络摄像头模式 =====
-const RTMP_RELAY='http://81.71.122.28:8093';
-const HLS_BASE='http://81.71.122.28:8092';
+const RTMP_RELAY='https://81.71.122.28:8094';
+const HLS_BASE='https://81.71.122.28:8094';
 let streamPollTimer=null;
 
 function showStreamModal(){
@@ -715,8 +715,12 @@ async function fetchStreamInfo(){
 }
 
 function forceConnectStream(){
-  const hlsUrl=HLS_BASE+'/live/cam-465kjjbn/index.m3u8';
-  connectToStream(hlsUrl);
+  // 从API获取最新流信息
+  fetch(RTMP_RELAY+'/api/status').then(r=>r.json()).then(info=>{
+    connectToStream(info.hlsUrl);
+  }).catch(()=>{
+    connectToStream(HLS_BASE+'/live/cam-465kjjbn/index.m3u8');
+  });
 }
 
 async function connectToStream(hlsUrl){
