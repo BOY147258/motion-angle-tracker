@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -208,6 +209,21 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
 .m-card .lb{font-size:14px;color:var(--text);font-weight:600}
 .m-card .ds{font-size:9px;color:var(--dim);margin-top:4px;line-height:1.4}
 
+/* ===== 网络摄像头输入弹窗 ===== */
+#streamModal{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;backdrop-filter:blur(6px)}
+#streamModal.show{display:flex}
+#streamModal .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px 24px;max-width:400px;width:90%}
+#streamModal h3{font-size:14px;color:var(--accent);margin-bottom:10px}
+#streamModal input{width:100%;font:12px var(--font);padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:rgba(0,0,0,.4);color:var(--text);outline:none;margin-bottom:10px}
+#streamModal input:focus{border-color:var(--accent)}
+#streamModal input::placeholder{color:var(--dim)}
+#streamModal .btns{display:flex;gap:8px}
+#streamModal .btns button{flex:1;font:11px var(--font);padding:8px;border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:all .2s}
+#streamModal .btn-go{background:rgba(0,240,255,.1);color:var(--accent);border-color:var(--accent)}
+#streamModal .btn-go:hover{background:rgba(0,240,255,.2)}
+#streamModal .btn-cancel{background:transparent;color:var(--dim)}
+#streamModal .hint{font-size:9px;color:var(--dim);margin-bottom:8px;line-height:1.5}
+
 /* ===== 发送端UI ===== */
 #senderUI{position:fixed;inset:0;z-index:50;background:#000;display:none;flex-direction:column;align-items:center;justify-content:center}
 #senderUI.show{display:flex}
@@ -343,7 +359,7 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
       <div class="lb">电脑端</div>
       <div class="ds">摄像头发送画面<br>手机扫码接收</div>
     </div>
-    <div class="m-card" onclick="askReceiver()">
+    <div class="m-card" onclick="initReceiver()">
       <span class="ic">📱</span>
       <div class="lb">手机端</div>
       <div class="ds">接收电脑画面<br>实时角度分析</div>
@@ -352,6 +368,38 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
       <span class="ic">📷</span>
       <div class="lb">本地模式</div>
       <div class="ds">使用本机摄像头<br>直接分析</div>
+    </div>
+    <div class="m-card" onclick="showStreamModal()">
+      <span class="ic">🌐</span>
+      <div class="lb">网络摄像头</div>
+      <div class="ds">RTMP拉流分析<br>异地摄像头监控</div>
+    </div>
+  </div>
+</div>
+
+<!-- 网络摄像头推流面板 -->
+<div id="streamModal">
+  <div class="card">
+    <h3>🌐 网络摄像头</h3>
+    <p style="font-size:10px;color:var(--dim);margin-bottom:10px">在你的摄像机上填写以下推流地址，画面将自动传输过来：</p>
+    <div style="background:rgba(0,240,255,.06);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:10px">
+      <div style="font-size:8px;color:var(--dim);margin-bottom:4px">推流地址 (RTMP)</div>
+      <div id="rtmpUrlDisplay" style="font-size:12px;color:var(--accent);word-break:break-all;font-weight:700;cursor:pointer" onclick="copyStreamUrl()">加载中...</div>
+    </div>
+    <div style="text-align:center;margin-bottom:10px" id="streamQR"></div>
+    <div style="font-size:9px;color:var(--dim);text-align:center;margin-bottom:8px" id="streamWaitStatus">
+      <div class="spinner" style="display:inline-block;width:12px;height:12px;border-width:2px;margin-right:4px;vertical-align:middle"></div>
+      等待摄像机推流...
+    </div>
+    <div style="font-size:8px;color:var(--dim);line-height:1.6">
+      <b>设置方法：</b><br>
+      1. 打开摄像机后台 → 视频设置 → 推流/RTMP<br>
+      2. 填入上方推流地址<br>
+      3. 保存后等待5-10秒，画面自动出现
+    </div>
+    <div class="btns" style="margin-top:10px">
+      <button class="btn-cancel" onclick="closeStreamModal()">取消</button>
+      <button class="btn-go" id="streamForceBtn" onclick="forceConnectStream()" disabled>手动连接</button>
     </div>
   </div>
 </div>
@@ -379,6 +427,10 @@ const LOWER_IDS=['l_hip','l_knee','l_ankle','r_hip','r_knee','r_ankle'];
 const CORE_IDS=['c_trunk','c_neck'];
 const CONNECTIONS=[[11,13],[13,15],[12,14],[14,16],[11,12],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28],[27,29],[28,30],[15,17],[16,18],[0,11],[0,12]];
 const ALL_JOINTS=[...JOINTS.L,...JOINTS.R,...JOINTS.C];
+
+// ===== 全局变量 =====
+let remoteFrameW=0,remoteFrameH=0; // 接收端用：远端帧尺寸
+let latestRemoteFrame=null; // 接收端用：最新帧缓存
 
 // ===== STATE =====
 let state={
@@ -475,18 +527,21 @@ window.onload=async()=>{
   waveCanvas=document.getElementById('waveCanvas');
   waveCtx=waveCanvas.getContext('2d');
   fixLayout();
-
-  // 检查URL参数：有peer参数→自动进入接收模式
-  const urlPeerId=new URLSearchParams(location.search).get('peer');
-  if(urlPeerId){
-    initReceiver(urlPeerId);
-    return;
-  }
-  // 无参数→显示模式选择
+  // 显示模式选择
   document.getElementById('modeSelect').classList.add('show');
 };
 
-// ===== 本地模式（原有功能） =====
+// ===== WebSocket 连接 =====
+let ws=null;
+function connectWS(role,onReady){
+  const proto=location.protocol==='https:'?'wss':'ws';
+  ws=new WebSocket(`${proto}://${location.host}`);
+  ws.onopen=()=>{ws.send(JSON.stringify({type:'register',role}));onReady&&onReady()};
+  ws.onclose=()=>showToast('连接断开',true);
+  ws.onerror=()=>showToast('连接失败',true);
+}
+
+// ===== 本地模式 =====
 async function initLocal(){
   document.getElementById('modeSelect').classList.remove('show');
   setLoad(20);
@@ -503,36 +558,48 @@ async function initSender(){
   document.getElementById('placeholder').style.display='none';
 
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720}},audio:false});
+    const stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480}},audio:false});
     const sv=document.getElementById('senderVideo');
     sv.srcObject=stream;await sv.play();
 
-    // 生成6位短ID
-    const peerId='ma-'+Math.random().toString(36).substr(2,6);
-    const peer=new Peer(peerId,{debug:0});
+    // 准备截图canvas
+    const snapCanvas=document.createElement('canvas');
+    snapCanvas.width=640;snapCanvas.height=480;
+    const snapCtx=snapCanvas.getContext('2d');
+    let receiverReady=false;
 
-    peer.on('open',id=>{
-      const link=location.origin+location.pathname+'?peer='+id;
-      document.getElementById('senderLink').textContent='🔗 点击复制: '+link;
+    connectWS('sender',()=>{
+      const link='http://81.71.122.28:8091';
+      document.getElementById('senderLink').textContent='🔗 复制链接: '+link;
       document.getElementById('senderLink').onclick=()=>{
         navigator.clipboard.writeText(link).then(()=>showToast('链接已复制'));
       };
-      // QR码
       document.getElementById('senderQR').innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data='+encodeURIComponent(link)+'" width="140" height="140">';
-      document.getElementById('senderStatus').textContent='⏳ 等待手机扫码连接...';
+      document.getElementById('senderStatus').textContent='⏳ 等待手机连接...';
     });
 
-    peer.on('call',call=>{
-      // 手机端打过来→把摄像头画面发过去
-      call.answer(stream);
-      document.getElementById('senderStatus').textContent='✓ 手机已连接！画面传输中';
-      document.getElementById('senderStatus').className='ok';
-    });
+    ws.onmessage=(e)=>{
+      const msg=JSON.parse(e.data);
+      if(msg.type==='receiver_joined'){
+        receiverReady=true;
+        document.getElementById('senderStatus').textContent='✓ 手机已连接！画面传输中';
+        document.getElementById('senderStatus').className='ok';
+      }
+    };
 
-    peer.on('error',err=>{
-      document.getElementById('senderStatus').textContent='❌ 错误: '+err.message;
-      document.getElementById('senderStatus').className='err';
-    });
+    // 以约15fps发送帧
+    let lastSend=0;
+    function sendLoop(ts){
+      if(ws&&ws.readyState===1&&receiverReady&&ts-lastSend>66){
+        lastSend=ts;
+        snapCtx.drawImage(sv,0,0,640,480);
+        const data=snapCanvas.toDataURL('image/jpeg',0.5);
+        ws.send(JSON.stringify({type:'frame',data}));
+      }
+      requestAnimationFrame(sendLoop);
+    }
+    requestAnimationFrame(sendLoop);
+
   }catch(e){
     document.getElementById('senderStatus').textContent='❌ 摄像头失败: '+e.message;
     document.getElementById('senderStatus').className='err';
@@ -540,53 +607,152 @@ async function initSender(){
 }
 
 // ===== 手机端（接收画面 + 分析） =====
-function askReceiver(){
-  const id=prompt('请输入电脑端显示的6位连接码\n(格式: ma-xxxxxx)');
-  if(id)location.search='?peer='+id.trim();
-}
-
-async function initReceiver(peerId){
-  // 不显示模式选择，不显示占位符
+async function initReceiver(){
   document.getElementById('modeSelect').classList.remove('show');
   showLoading('正在连接电脑端...');
 
   await initPose();
+  remoteFrameW=640;remoteFrameH=480;
 
-  const peer=new Peer({debug:0});
+  // 接收端离屏canvas（640x480）
+  const recvCvs=document.createElement('canvas');
+  recvCvs.width=remoteFrameW;recvCvs.height=remoteFrameH;
+  const recvCtx=recvCvs.getContext('2d');
+  let lastFrameTime=0;
 
-  peer.on('open',()=>{
-    // 主动呼叫电脑端，发送空流（只接收）
-    const call=peer.call(peerId,new MediaStream());
-    call.on('stream',remoteStream=>{
-      hideLoading();
-      // 把远程流设为视频源
-      video.srcObject=remoteStream;
-      video.play().then(()=>{
-        requestFrame();
-        document.getElementById('placeholder').style.display='none';
-        document.getElementById('dotCam').className='dot dot-on';
-      });
-    });
-    call.on('error',err=>{
-      hideLoading();
-      showToast('连接失败: '+err.message,true);
-    });
-    // 超时处理
-    setTimeout(()=>{
-      if(!video.srcObject){
-        hideLoading();
-        showToast('连接超时，请检查电脑端是否在线',true);
-      }
-    },10000);
-  });
-
-  peer.on('error',err=>{
+  connectWS('receiver',()=>{
     hideLoading();
-    showToast('连接错误: '+err.message,true);
+    document.getElementById('placeholder').style.display='none';
+    document.getElementById('dotCam').className='dot dot-on';
+    showToast('已连接电脑端');
+    // 启动分析循环
+    function recvLoop(ts){
+      // 用requestAnimationFrame驱动，限制~15fps
+      if(lastFrameTime&&ts-lastFrameTime<66){requestAnimationFrame(recvLoop);return}
+      lastFrameTime=ts;
+      if(latestRemoteFrame&&pose){
+        recvCtx.drawImage(latestRemoteFrame,0,0,remoteFrameW,remoteFrameH);
+        // 设置canvas transform：将640x480映射到屏幕居中区域
+        const sw=canvas.width,sh=canvas.height;
+        const sc=Math.max(sw/remoteFrameW,sh/remoteFrameH);
+        const ox=(sw-remoteFrameW*sc)/2,oy=(sh-remoteFrameH*sc)/2;
+        ctx.setTransform(sc,0,0,sc,ox,oy);
+        pose.send({image:recvCvs}).catch(()=>{});
+      }
+      requestAnimationFrame(recvLoop);
+    }
+    requestAnimationFrame(recvLoop);
   });
+
+  // 收到帧→缓存
+  ws.onmessage=(e)=>{
+    const msg=JSON.parse(e.data);
+    if(msg.type==='frame'&&msg.data){
+      const img=new Image();
+      img.onload=()=>{
+        if(!latestRemoteFrame){latestRemoteFrame=document.createElement('canvas');latestRemoteFrame.width=remoteFrameW;latestRemoteFrame.height=remoteFrameH}
+        const c=latestRemoteFrame.getContext('2d');
+        c.drawImage(img,0,0,remoteFrameW,remoteFrameH);
+      };
+      img.src=msg.data;
+    }
+  };
+
+  // 超时处理
+  setTimeout(()=>{
+    if(!ws||ws.readyState!==1){
+      hideLoading();
+      showToast('连接超时，请确认电脑端已打开',true);
+    }
+  },10000);
 }
 
 function setLoad(p){document.getElementById('loadFill').style.width=p+'%'}
+
+// ===== 网络摄像头模式 =====
+const RTMP_RELAY='http://81.71.122.28:8093';
+const HLS_BASE='http://81.71.122.28:8092';
+let streamPollTimer=null;
+
+function showStreamModal(){
+  document.getElementById('modeSelect').classList.remove('show');
+  document.getElementById('streamModal').classList.add('show');
+  fetchStreamInfo();
+}
+function closeStreamModal(){
+  document.getElementById('streamModal').classList.remove('show');
+  document.getElementById('modeSelect').classList.add('show');
+  if(streamPollTimer){clearInterval(streamPollTimer);streamPollTimer=null}
+}
+
+function copyStreamUrl(){
+  const txt=document.getElementById('rtmpUrlDisplay').textContent;
+  navigator.clipboard.writeText(txt).then(()=>showToast('推流地址已复制'));
+}
+
+async function fetchStreamInfo(){
+  try{
+    const resp=await fetch(RTMP_RELAY+'/api/status');
+    const info=await resp.json();
+    document.getElementById('rtmpUrlDisplay').textContent=info.rtmpUrl;
+    document.getElementById('streamQR').innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data='+encodeURIComponent(info.rtmpUrl)+'" width="140" height="140" style="border-radius:6px">';
+    document.getElementById('streamForceBtn').disabled=false;
+    // 如果已有流，直接连接
+    if(info.hasStream){connectToStream(info.hlsUrl);return}
+    // 否则轮询等待
+    streamPollTimer=setInterval(async()=>{
+      try{
+        const r=await fetch(RTMP_RELAY+'/api/status');
+        const d=await r.json();
+        if(d.hasStream){clearInterval(streamPollTimer);streamPollTimer=null;connectToStream(d.hlsUrl)}
+      }catch(e){}
+    },3000);
+  }catch(e){
+    document.getElementById('rtmpUrlDisplay').textContent='无法连接转码服务器';
+    document.getElementById('streamWaitStatus').textContent='❌ 请确认服务器 81.71.122.28:8093 可访问';
+    document.getElementById('streamWaitStatus').style.color='var(--red)';
+  }
+}
+
+function forceConnectStream(){
+  const hlsUrl=HLS_BASE+'/live/cam-465kjjbn/index.m3u8';
+  connectToStream(hlsUrl);
+}
+
+async function connectToStream(hlsUrl){
+  document.getElementById('streamModal').classList.remove('show');
+  document.getElementById('placeholder').style.display='none';
+  showLoading('正在连接视频流...');
+  await initPose();
+
+  if(Hls.isSupported()){
+    const hls=new Hls({liveDurationInfinity:true,lowLatencyMode:true,manifestLoadingTimeOut:15000});
+    hls.loadSource(hlsUrl);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED,()=>{
+      hideLoading();
+      video.play().then(()=>{
+        document.getElementById('dotCam').className='dot dot-on';
+        requestFrame();
+        showToast('网络摄像头已连接');
+      });
+    });
+    hls.on(Hls.Events.ERROR,(event,data)=>{
+      if(data.fatal){
+        hideLoading();
+        if(data.type===hls.ErrorTypes.NETWORK_ERROR){
+          showToast('流尚未就绪，请确认摄像机已推流',true);
+          hls.destroy();
+          document.getElementById('modeSelect').classList.add('show');
+        }else{showToast('播放错误: '+data.type,true)}
+      }
+    });
+  }else if(video.canPlayType('application/vnd.apple.mpegurl')){
+    video.src=hlsUrl;
+    video.addEventListener('loadedmetadata',()=>{hideLoading();video.play();requestFrame()},{once:true});
+    video.addEventListener('error',()=>{hideLoading();showToast('流加载失败',true)},{once:true});
+  }else{hideLoading();showToast('浏览器不支持HLS',true);return}
+}
 
 async function initPose(){
   const CDN1='https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/';
@@ -667,6 +833,13 @@ function onResults(results){
   ctx.save();
   ctx.setTransform(1,0,0,1,0,0);
   ctx.clearRect(0,0,canvas.width,canvas.height);
+  // 接收端：绘制远端帧作为背景
+  if(latestRemoteFrame&&remoteFrameW>0){
+    const sw=canvas.width,sh=canvas.height;
+    const sc=Math.max(sw/remoteFrameW,sh/remoteFrameH);
+    const ox=(sw-remoteFrameW*sc)/2,oy=(sh-remoteFrameH*sc)/2;
+    ctx.drawImage(latestRemoteFrame,ox,oy,remoteFrameW*sc,remoteFrameH*sc);
+  }
   ctx.restore(); // 恢复loop中设置的transform
   if(!results.poseLandmarks)return;
   const rawLm=results.poseLandmarks;
@@ -682,7 +855,10 @@ function onResults(results){
   const smLm=landmarkSmoother.smooth(rawLm);
   state.latestLandmarks=rawLm;
   // 使用视频原始尺寸作为坐标系，ctx.setTransform 会映射到屏幕
-  const w=video.videoWidth||canvas.width,h=video.videoHeight||canvas.height;
+  // 接收端模式(remoteFrameW>0)使用固定640x480
+  const vw=video.videoWidth||remoteFrameW||canvas.width;
+  const vh=video.videoHeight||remoteFrameH||canvas.height;
+  const w=vw,h=vh;
   const now=performance.now();
 
   document.getElementById('resInfo').textContent=w+'×'+h;
