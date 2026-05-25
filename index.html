@@ -7,6 +7,7 @@
 <title>MotionAngle Pro v5.0 — 运动分析系统</title>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -162,6 +163,64 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
   #bottomBar { padding-bottom: calc(3px + env(safe-area-inset-bottom)); }
   #ctrlPanel { padding-bottom: calc(3px + env(safe-area-inset-bottom)); }
 }
+
+/* ===== 加载提示 ===== */
+#loadingOverlay{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;backdrop-filter:blur(4px)}
+#loadingOverlay.show{display:flex}
+#loadingOverlay .spinner{width:28px;height:28px;border:3px solid rgba(0,240,255,.2);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loadingOverlay .load-text{font-size:12px;color:var(--accent)}
+
+/* ===== 导出成功提示 ===== */
+#toast{position:fixed;top:40px;left:50%;transform:translateX(-50%) translateY(-60px);z-index:90;padding:6px 18px;border-radius:6px;font-size:11px;font-weight:600;opacity:0;transition:transform .3s,opacity .3s;pointer-events:none}
+#toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast-ok{background:rgba(0,230,118,.9);color:#000}
+.toast-err{background:rgba(255,61,90,.9);color:#fff}
+
+/* ===== 首次引导 ===== */
+#onboard{position:fixed;inset:0;z-index:95;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;backdrop-filter:blur(6px);padding:20px}
+#onboard.show{display:flex}
+#onboard h2{font-size:16px;color:var(--accent);margin-bottom:4px}
+#onboard .steps{text-align:left;font-size:11px;color:var(--text);line-height:2;max-width:320px}
+#onboard .steps span{color:var(--accent);font-weight:700}
+#onboard button{margin-top:8px;font:12px var(--font);padding:8px 24px;border:1px solid var(--accent);border-radius:6px;background:rgba(0,240,255,.1);color:var(--accent);cursor:pointer}
+
+/* ===== 角度-时间图表 ===== */
+#chartPanel{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.92);display:none;flex-direction:column;padding:16px;backdrop-filter:blur(6px)}
+#chartPanel.show{display:flex}
+#chartPanel .chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+#chartPanel .chart-header h3{font-size:13px;color:var(--accent)}
+#chartPanel .chart-header button{font:10px var(--font);padding:4px 10px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--dim);cursor:pointer}
+#chartCanvas{flex:1;width:100%;border:1px solid var(--border);border-radius:6px;background:rgba(6,8,18,.6)}
+#chartSel{margin-top:8px;display:flex;gap:4px;flex-wrap:wrap}
+#chartSel button{font:8px var(--font);padding:3px 6px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--dim);cursor:pointer}
+#chartSel button.on{color:var(--accent);border-color:var(--accent);background:rgba(0,240,255,.06)}
+
+/* ===== 模式选择 ===== */
+#modeSelect{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.96);display:none;align-items:center;justify-content:center;flex-direction:column;gap:20px;backdrop-filter:blur(10px)}
+#modeSelect.show{display:flex}
+#modeSelect h2{font-size:20px;color:var(--accent);margin-bottom:4px;letter-spacing:1px}
+#modeSelect .sub{font-size:10px;color:var(--dim);margin-bottom:12px}
+#modeSelect .modes{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+.m-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:24px 20px;text-align:center;cursor:pointer;transition:all .2s;min-width:120px}
+.m-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,240,255,.15)}
+.m-card .ic{font-size:36px;display:block;margin-bottom:8px}
+.m-card .lb{font-size:14px;color:var(--text);font-weight:600}
+.m-card .ds{font-size:9px;color:var(--dim);margin-top:4px;line-height:1.4}
+
+/* ===== 发送端UI ===== */
+#senderUI{position:fixed;inset:0;z-index:50;background:#000;display:none;flex-direction:column;align-items:center;justify-content:center}
+#senderUI.show{display:flex}
+#senderVideo{max-width:100%;max-height:60vh;object-fit:contain;border-radius:8px}
+#senderInfo{text-align:center;padding:16px;max-width:400px;width:100%}
+#senderInfo .qr-wrap{margin:0 auto 10px}
+#senderInfo .qr-wrap img{border-radius:8px;border:2px solid var(--border)}
+#senderLink{font-size:11px;color:var(--accent);word-break:break-all;cursor:pointer;padding:8px 12px;background:rgba(0,240,255,.05);border:1px solid var(--border);border-radius:6px;display:block;margin-bottom:8px;transition:background .2s}
+#senderLink:hover{background:rgba(0,240,255,.12)}
+#senderStatus{font-size:10px;color:var(--dim);margin-top:6px}
+#senderStatus.ok{color:var(--green)}
+#senderStatus.err{color:var(--red)}
+#senderBack{position:fixed;top:10px;left:10px;z-index:51;font:10px var(--font);padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--panel);color:var(--dim);cursor:pointer}
 </style>
 </head>
 <body>
@@ -240,6 +299,72 @@ html,body{height:100%;overflow:hidden;background:#000;font-family:var(--font);co
   <button class="rb" id="btnRec" onclick="toggleRec()">● 录制</button>
   <button class="mb" id="btnMark" onclick="markTrial()" disabled>⚑ 标记试次</button>
   <button class="eb" id="btnExport" onclick="exportData()" disabled>↓ 导出</button>
+  <button class="mb" id="btnChart" onclick="showChart()" disabled>📊 图表</button>
+</div>
+
+<!-- 加载提示 -->
+<div id="loadingOverlay"><div class="spinner"></div><div class="load-text" id="loadText">加载中...</div></div>
+
+<!-- 导出提示 -->
+<div id="toast"></div>
+
+<!-- 首次引导 -->
+<div id="onboard">
+  <h2>◈ MotionAngle Pro</h2>
+  <div class="steps">
+    <span>📷 实时</span> — 打开摄像头实时测量<br>
+    <span>📁 导入</span> — 导入录好的视频自动分析<br>
+    <span>🔄 翻转</span> — 切换前置/后置摄像头<br>
+    <span>📐 校准</span> — 用已知直角校准精度<br>
+    <span>● 录制</span> — 开始采集角度数据<br>
+    <span>↓ 导出</span> — 导出中文 Excel 报告<br>
+    <span>📊 图表</span> — 查看角度-时间曲线
+  </div>
+  <button onclick="closeOnboard()">开始使用</button>
+</div>
+
+<!-- 角度-时间图表 -->
+<div id="chartPanel">
+  <div class="chart-header">
+    <h3>📊 角度-时间曲线</h3>
+    <button onclick="closeChart()">✕ 关闭</button>
+  </div>
+  <canvas id="chartCanvas"></canvas>
+  <div id="chartSel"></div>
+</div>
+
+<!-- 模式选择 -->
+<div id="modeSelect">
+  <h2>◈ MotionAngle Pro</h2>
+  <div class="sub">选择使用模式</div>
+  <div class="modes">
+    <div class="m-card" onclick="initSender()">
+      <span class="ic">💻</span>
+      <div class="lb">电脑端</div>
+      <div class="ds">摄像头发送画面<br>手机扫码接收</div>
+    </div>
+    <div class="m-card" onclick="askReceiver()">
+      <span class="ic">📱</span>
+      <div class="lb">手机端</div>
+      <div class="ds">接收电脑画面<br>实时角度分析</div>
+    </div>
+    <div class="m-card" onclick="initLocal()">
+      <span class="ic">📷</span>
+      <div class="lb">本地模式</div>
+      <div class="ds">使用本机摄像头<br>直接分析</div>
+    </div>
+  </div>
+</div>
+
+<!-- 发送端UI -->
+<div id="senderUI">
+  <button id="senderBack" onclick="location.reload()">← 返回</button>
+  <video id="senderVideo" playsinline muted autoplay></video>
+  <div id="senderInfo">
+    <div class="qr-wrap" id="senderQR"></div>
+    <div id="senderLink">正在生成连接...</div>
+    <div id="senderStatus">初始化中...</div>
+  </div>
 </div>
 
 <script>
@@ -349,16 +474,117 @@ window.onload=async()=>{
   ctx=canvas.getContext('2d');
   waveCanvas=document.getElementById('waveCanvas');
   waveCtx=waveCanvas.getContext('2d');
-  // 屏幕方向变化监听 — 自动适配
-  window.addEventListener('orientationchange',()=>{setTimeout(fixLayout,300)});
-  window.addEventListener('resize',()=>fixLayout());
   fixLayout();
+
+  // 检查URL参数：有peer参数→自动进入接收模式
+  const urlPeerId=new URLSearchParams(location.search).get('peer');
+  if(urlPeerId){
+    initReceiver(urlPeerId);
+    return;
+  }
+  // 无参数→显示模式选择
+  document.getElementById('modeSelect').classList.add('show');
+};
+
+// ===== 本地模式（原有功能） =====
+async function initLocal(){
+  document.getElementById('modeSelect').classList.remove('show');
   setLoad(20);
   await initPose();
   await startCamera();
   setLoad(100);
-  setTimeout(()=>document.getElementById('placeholder').style.display='none',300);
-};
+  setTimeout(()=>{document.getElementById('placeholder').style.display='none';checkOnboard()},300);
+}
+
+// ===== 电脑端（发送画面） =====
+async function initSender(){
+  document.getElementById('modeSelect').classList.remove('show');
+  document.getElementById('senderUI').classList.add('show');
+  document.getElementById('placeholder').style.display='none';
+
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720}},audio:false});
+    const sv=document.getElementById('senderVideo');
+    sv.srcObject=stream;await sv.play();
+
+    // 生成6位短ID
+    const peerId='ma-'+Math.random().toString(36).substr(2,6);
+    const peer=new Peer(peerId,{debug:0});
+
+    peer.on('open',id=>{
+      const link=location.origin+location.pathname+'?peer='+id;
+      document.getElementById('senderLink').textContent='🔗 点击复制: '+link;
+      document.getElementById('senderLink').onclick=()=>{
+        navigator.clipboard.writeText(link).then(()=>showToast('链接已复制'));
+      };
+      // QR码
+      document.getElementById('senderQR').innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data='+encodeURIComponent(link)+'" width="140" height="140">';
+      document.getElementById('senderStatus').textContent='⏳ 等待手机扫码连接...';
+    });
+
+    peer.on('call',call=>{
+      // 手机端打过来→把摄像头画面发过去
+      call.answer(stream);
+      document.getElementById('senderStatus').textContent='✓ 手机已连接！画面传输中';
+      document.getElementById('senderStatus').className='ok';
+    });
+
+    peer.on('error',err=>{
+      document.getElementById('senderStatus').textContent='❌ 错误: '+err.message;
+      document.getElementById('senderStatus').className='err';
+    });
+  }catch(e){
+    document.getElementById('senderStatus').textContent='❌ 摄像头失败: '+e.message;
+    document.getElementById('senderStatus').className='err';
+  }
+}
+
+// ===== 手机端（接收画面 + 分析） =====
+function askReceiver(){
+  const id=prompt('请输入电脑端显示的6位连接码\n(格式: ma-xxxxxx)');
+  if(id)location.search='?peer='+id.trim();
+}
+
+async function initReceiver(peerId){
+  // 不显示模式选择，不显示占位符
+  document.getElementById('modeSelect').classList.remove('show');
+  showLoading('正在连接电脑端...');
+
+  await initPose();
+
+  const peer=new Peer({debug:0});
+
+  peer.on('open',()=>{
+    // 主动呼叫电脑端，发送空流（只接收）
+    const call=peer.call(peerId,new MediaStream());
+    call.on('stream',remoteStream=>{
+      hideLoading();
+      // 把远程流设为视频源
+      video.srcObject=remoteStream;
+      video.play().then(()=>{
+        requestFrame();
+        document.getElementById('placeholder').style.display='none';
+        document.getElementById('dotCam').className='dot dot-on';
+      });
+    });
+    call.on('error',err=>{
+      hideLoading();
+      showToast('连接失败: '+err.message,true);
+    });
+    // 超时处理
+    setTimeout(()=>{
+      if(!video.srcObject){
+        hideLoading();
+        showToast('连接超时，请检查电脑端是否在线',true);
+      }
+    },10000);
+  });
+
+  peer.on('error',err=>{
+    hideLoading();
+    showToast('连接错误: '+err.message,true);
+  });
+}
 
 function setLoad(p){document.getElementById('loadFill').style.width=p+'%'}
 
@@ -407,9 +633,22 @@ async function loop(){
   if(video.readyState>=2){
     const vw=video.videoWidth||video.clientWidth;
     const vh=video.videoHeight||video.clientHeight;
-    // canvas 匹配屏幕显示尺寸，确保骨架覆盖正确
-    canvas.width=canvas.clientWidth;canvas.height=canvas.clientHeight;
-    // Use offscreen canvas for model input (better mobile compatibility)
+
+    // 计算 object-fit:contain 的实际显示区域
+    const sw=window.innerWidth,sh=window.innerHeight;
+    const videoAspect=vw/vh,screenAspect=sw/sh;
+    let drawW,drawH,drawX=0,drawY=0;
+    if(videoAspect>screenAspect){
+      // 视频比屏幕更宽，上下留黑边
+      drawW=sw;drawH=sw/videoAspect;drawX=0;drawY=(sh-drawH)/2;
+    }else{
+      // 视频比屏幕更高，左右留黑边
+      drawH=sh;drawW=sh*videoAspect;drawX=(sw-drawW)/2;drawY=0;
+    }
+    canvas.width=sw;canvas.height=sh;
+    // 通过 transform 将坐标系映射到视频区域
+    ctx.setTransform(drawW/vw,0,0,drawH/vh,drawX,drawY);
+
     if(!window._offCvs){window._offCvs=document.createElement('canvas');window._offCtx=window._offCvs.getContext('2d')}
     window._offCvs.width=vw;window._offCvs.height=vh;
     window._offCtx.drawImage(video,0,0,vw,vh);
@@ -424,7 +663,11 @@ async function loop(){
 
 // ===== RESULTS HANDLER =====
 function onResults(results){
+  // 先重置transform再清空画布
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
   ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.restore(); // 恢复loop中设置的transform
   if(!results.poseLandmarks)return;
   const rawLm=results.poseLandmarks;
 
@@ -438,7 +681,8 @@ function onResults(results){
   // 平滑坐标用于绘图（骨架不抖）；角度仍用原始数据保证精度
   const smLm=landmarkSmoother.smooth(rawLm);
   state.latestLandmarks=rawLm;
-  const w=canvas.width,h=canvas.height;
+  // 使用视频原始尺寸作为坐标系，ctx.setTransform 会映射到屏幕
+  const w=video.videoWidth||canvas.width,h=video.videoHeight||canvas.height;
   const now=performance.now();
 
   document.getElementById('resInfo').textContent=w+'×'+h;
@@ -713,11 +957,14 @@ function toggleFullscreen(){
 
 function toggle(key){
   state[key]=!state[key];
-  const map={skeleton:'btnSkel',angles:'btnAng',cog:'btnCog',trail:'btnTrail',grid:'btnGrid',mirror:'btnMirror'};
+  const map={skeleton:'btnSkel',angles:'btnAng',cog:'btnCog',trail:'btnTrail',grid:'btnGrid'};
   document.getElementById(map[key])?.classList.toggle('on',state[key]);
-  if(key==='mirror')video.classList.toggle('mirror',state.mirror);
   if(key==='trail'&&!state.trail)state.trailPoints={};
 }
+
+// ===== 首屏引导 =====
+function closeOnboard(){document.getElementById('onboard').classList.remove('show');localStorage.setItem('ma_onboarded','1')}
+function checkOnboard(){if(!localStorage.getItem('ma_onboarded'))document.getElementById('onboard').classList.add('show')}
 
 function setView(v,btn){
   state.view=v;state.waveData=[];
@@ -740,28 +987,43 @@ function switchSource(src){
 
 document.getElementById('videoFile').onchange=function(e){
   const file=e.target.files[0];if(!file)return;
+  // 显示加载提示
+  showLoading('正在加载视频...');
   // 停止摄像头
   if(video.srcObject){video.srcObject.getTracks().forEach(t=>t.stop());video.srcObject=null}
   video.removeAttribute('src');
-  video.classList.remove('mirror');
   const url=URL.createObjectURL(file);
   video.src=url;video.muted=true;video.loop=false;
   video.playsInline=true;
   document.getElementById('dotCam').className='dot dot-on';
   document.getElementById('progressBar').classList.add('show');
   state.source='file';
-  // 等待视频可播放后自动开始分析
   video.onloadeddata=function(){
+    showLoading('正在分析视频...');
+    // iOS需要用户手势才能播放，这里用play()并捕获错误
     video.play().then(()=>{
       requestFrame();
       // 自动开始录制分析
       if(!state.recording)toggleRec();
-    }).catch(()=>{});
+      hideLoading();
+    }).catch(err=>{
+      // iOS autoplay被拦截：显示提示让用户点击播放
+      hideLoading();
+      showToast('请点击视频开始播放',true);
+      video.controls=true;
+      video.addEventListener('play',function onPlay(){
+        video.controls=false;
+        if(!state.recording)toggleRec();
+        video.removeEventListener('play',onPlay);
+      },{once:true});
+    });
   };
   video.ontimeupdate=()=>{if(video.duration)document.getElementById('progressFill').style.width=(video.currentTime/video.duration*100)+'%'};
   // 视频播放结束时自动停止录制
   video.onended=function(){
     if(state.recording)toggleRec();
+    hideLoading();
+    showToast('分析完成，点击导出查看结果');
   };
   video.load();
 };
@@ -777,9 +1039,11 @@ function toggleRec(){
     // 重置两级滤波器
     for(const f of Object.values(medianFilters))f.reset();
     for(const f of Object.values(smoothFilters))f.reset();
+    landmarkSmoother.reset();
     btn.classList.add('active');btn.textContent='■ 停止';
     badge.classList.add('show');
     document.getElementById('btnExport').disabled=true;
+    document.getElementById('btnChart').disabled=true;
     document.getElementById('btnMark').disabled=false;
     document.getElementById('trialNum').textContent='1';
     document.getElementById('trialBadge').classList.add('show');
@@ -789,6 +1053,7 @@ function toggleRec(){
     badge.classList.remove('show');
     if(state.recData.length>0){
       document.getElementById('btnExport').disabled=false;
+      document.getElementById('btnChart').disabled=false;
       document.getElementById('trialCount').textContent=state.currentTrial;
     }
     document.getElementById('btnMark').disabled=true;
@@ -910,39 +1175,141 @@ function exportData(){
 
   const filename='运动角度分析_'+new Date().toLocaleString('zh-CN').replace(/[\/\s:]/g,'-')+'.xlsx';
   XLSX.writeFile(wb,filename);
+  showToast('导出成功：'+filename);
 }
 
 // ===== UTILS =====
 function formatTimeMs(s){const m=Math.floor(s/60),sec=Math.floor(s%60),ms=Math.floor((s%1)*1000);return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0')+'.'+String(ms).padStart(3,'0')}
 function formatTimeSec(s){const m=Math.floor(s/60),sec=Math.floor(s%60);return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0')}
 
-// ===== 横竖屏布局适配 =====
+// ===== 加载提示 =====
+function showLoading(txt){document.getElementById('loadText').textContent=txt||'加载中...';document.getElementById('loadingOverlay').classList.add('show')}
+function hideLoading(){document.getElementById('loadingOverlay').classList.remove('show')}
+
+// ===== Toast提示 =====
+function showToast(txt,isErr){
+  const el=document.getElementById('toast');
+  el.textContent=txt;
+  el.className=isErr?'toast-err':'toast-ok';
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),3000);
+}
+
+// ===== 角度-时间图表 =====
+function showChart(){
+  if(!state.recData||!state.recData.length){showToast('请先录制或导入数据',true);return}
+  document.getElementById('chartPanel').classList.add('show');
+  drawChart('all');
+  // 生成关节选择按钮
+  const sel=document.getElementById('chartSel');sel.innerHTML='';
+  const opts=[{id:'all',name:'全部'}];
+  for(const j of ALL_JOINTS)opts.push({id:j.id,name:j.name});
+  for(const o of opts){
+    const b=document.createElement('button');b.textContent=o.name;
+    if(o.id==='all')b.classList.add('on');
+    b.onclick=()=>{sel.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');drawChart(o.id)};
+    sel.appendChild(b);
+  }
+}
+
+function closeChart(){document.getElementById('chartPanel').classList.remove('show')}
+
+function drawChart(jointId){
+  const cvs=document.getElementById('chartCanvas');
+  const ctx=cvs.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  cvs.width=cvs.clientWidth*dpr;cvs.height=cvs.clientHeight*dpr;
+  ctx.scale(dpr,dpr);
+  const W=cvs.clientWidth,H=cvs.clientHeight;
+  ctx.clearRect(0,0,W,H);
+
+  const data=state.recData;
+  if(!data||!data.length)return;
+
+  const margin={t:20,r:10,b:24,l:36};
+  const cw=W-margin.l-margin.r,ch=H-margin.t-margin.b;
+
+  // 确定要绘制的关节
+  const joints=jointId==='all'?ALL_JOINTS:ALL_JOINTS.filter(j=>j.id===jointId);
+  const colors=['#00f0ff','#ff3d5a','#ff9100','#00e676','#7c5bf5','#448aff','#e040fb','#76ff03','#ff6e40','#18ffff','#64ffda','#ffab40','#536dfe','#ff5252','#69f0ae'];
+
+  // Y轴范围：0-180°
+  const yMin=0,yMax=180;
+  const tMin=data[0].time,tMax=data[data.length-1].time;
+
+  // 网格
+  ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;
+  for(let y=0;y<=6;y++){
+    const yy=margin.t+ch-ch*(y/6);
+    ctx.beginPath();ctx.moveTo(margin.l,yy);ctx.lineTo(margin.l+cw,yy);ctx.stroke();
+    ctx.fillStyle='var(--dim)';ctx.font='8px monospace';ctx.textAlign='right';
+    ctx.fillText(Math.round(yMin+(yMax-yMin)*(y/6))+'°',margin.l-4,yy+3);
+  }
+  // X轴时间标签
+  const steps=Math.min(data.length-1,6);
+  for(let i=0;i<=steps;i++){
+    const x=margin.l+cw*(i/steps);
+    const t=tMin+(tMax-tMin)*(i/steps);
+    ctx.fillStyle='rgba(255,255,255,.3)';ctx.font='8px monospace';ctx.textAlign='center';
+    ctx.fillText(t.toFixed(1)+'s',x,H-4);
+  }
+
+  // 绘制数据线
+  for(let ji=0;ji<joints.length;ji++){
+    const j=joints[ji];const color=colors[ji%colors.length];
+    ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=1.5;
+    let started=false;
+    for(let i=0;i<data.length;i++){
+      const v=data[i][j.id];if(v===undefined)continue;
+      const x=margin.l+cw*((data[i].time-tMin)/(tMax-tMin));
+      const y=margin.t+ch-ch*((v-yMin)/(yMax-yMin));
+      if(!started){ctx.moveTo(x,y);started=true}else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+
+  // 图例
+  if(joints.length>1){
+    ctx.font='9px monospace';ctx.textAlign='left';
+    for(let ji=0;ji<Math.min(joints.length,8);ji++){
+      const x=margin.l+ji*70,y=12;
+      ctx.fillStyle=colors[ji%colors.length];
+      ctx.fillRect(x,y-6,8,8);
+      ctx.fillStyle='rgba(255,255,255,.6)';
+      ctx.fillText(joints[ji].name,x+10,y+2);
+    }
+  }
+}
+
+// ===== 横竖屏布局适配 + 摄像头方向处理 =====
 function fixLayout(){
   const isPortrait=window.innerHeight>window.innerWidth;
   const anglePanel=document.getElementById('anglePanel');
   if(isPortrait){
-    // 竖屏：角度面板放底部
     anglePanel.style.top='auto';
-    anglePanel.style.bottom='52px';
+    anglePanel.style.bottom='44px';
     anglePanel.style.right='4px';
     anglePanel.style.left='4px';
     anglePanel.style.width='auto';
-    anglePanel.style.maxHeight='40vh';
+    anglePanel.style.maxHeight='35vh';
   }else{
-    // 横屏：角度面板放右侧
     anglePanel.style.top='6px';
     anglePanel.style.bottom='auto';
     anglePanel.style.right='6px';
     anglePanel.style.left='auto';
-    anglePanel.style.width='155px';
+    anglePanel.style.width='140px';
     anglePanel.style.maxHeight='calc(100vh - 12px)';
   }
-  // 重置 canvas 尺寸以匹配新布局
+  // 重置 canvas 尺寸
   if(canvas){
-    canvas.width=canvas.clientWidth;
-    canvas.height=canvas.clientHeight;
+    canvas.width=canvas.clientWidth||window.innerWidth;
+    canvas.height=canvas.clientHeight||window.innerHeight;
   }
 }
+
+// 监听方向变化
+window.addEventListener('orientationchange',()=>setTimeout(fixLayout,300));
+window.addEventListener('resize',()=>fixLayout());
 </script>
 </body>
 </html>
